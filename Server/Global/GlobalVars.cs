@@ -1,0 +1,21 @@
+﻿using GrandTheftMultiplayer.Server.API;
+
+namespace MpRpServer.Server.Global
+{
+    class GlobalVars : Script
+    {
+        public static string ListeningServer;
+        public static int ListeningPort;
+        public static string ListeningString;
+
+        public static string WebServer;
+        public static int WebServerPort;
+        public static string WebServerConnectionString;
+
+        public static string WebRTCServer;
+        public static int WebRTCServerPort;
+        public static string WebRTCServerConnectionString;
+
+        public static string ServerName = "GTA 5 : MP RP";
+    }
+}
