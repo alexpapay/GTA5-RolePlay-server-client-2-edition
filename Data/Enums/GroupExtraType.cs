@@ -136,6 +136,10 @@ namespace MpRpServer.Data.Enums
         [BlipType(188)]
         EmergencyBoss = 210,
 
+        [Display(Name = "Глава фракции")]
+        [BlipType(188)]
+        EmergencyRoot = 211,
+
         #endregion
         #region FBI 3
         [Display(Name = "ФБР : База")]
@@ -181,6 +185,52 @@ namespace MpRpServer.Data.Enums
         [Display(Name = "Директор")]
         [BlipType(188)]
         FBIBoss = 310,
+
+        #endregion
+        #region News 7
+        [Display(Name = "Новости : База")]
+        [BlipType(459)]
+        NewsBase = 700,
+
+        [Display(Name = "Стажер")]
+        [BlipType(459)]
+        NewsStajor = 701,
+
+        [Display(Name = "Звукооператор")]
+        [BlipType(459)]
+        NewsSoundOperator = 702,
+
+        [Display(Name = "Репортёр")]
+        [BlipType(459)]
+        NewsReporter = 703,
+
+        [Display(Name = "Второй репортёр")]
+        [BlipType(459)]
+        NewsReporter2 = 704,
+
+        [Display(Name = "Ведущий")]
+        [BlipType(459)]
+        NewsDictor = 705,
+
+        [Display(Name = "Редактор")]
+        [BlipType(459)]
+        NewsRedactor = 706,
+
+        [Display(Name = "Главный редактор")]
+        [BlipType(459)]
+        NewsMainRedactor = 707,
+
+        [Display(Name = "Программный Директор")]
+        [BlipType(459)]
+        NewsProgDirector = 708,
+
+        [Display(Name = "Программный Директор 2")]
+        [BlipType(459)]
+        NewsProgDirector2 = 709,
+
+        [Display(Name = "Ген. Директор")]
+        [BlipType(459)]
+        NewsBoss = 710,
 
         #endregion
         #region Goverment 11
@@ -260,7 +310,6 @@ namespace MpRpServer.Data.Enums
         Manager = 1210,
 
         #endregion
-
 
         #region The Ballas Gang : 13
         [Display(Name = "Балласы:База")]

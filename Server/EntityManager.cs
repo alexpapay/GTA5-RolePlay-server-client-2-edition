@@ -36,6 +36,18 @@ namespace MpRpServer.Server
             API.shared.consoleOutput("[ERROR in "+ place + "]:" + log);
             Console.ResetColor();
         }
+        public static void Success(string message)
+        {
+            Console.BackgroundColor = ConsoleColor.Green;
+            API.shared.consoleOutput("[SERVER] " + message);
+            Console.ResetColor();
+        }
+        public static void Warning(string message)
+        {
+            Console.BackgroundColor = ConsoleColor.Red;
+            API.shared.consoleOutput("[SERVER] " + message);
+            Console.ResetColor();
+        }
 
         private static Dictionary<int, CharacterController> characterDictionary = new Dictionary<int, CharacterController>();
 
@@ -61,7 +73,7 @@ namespace MpRpServer.Server
             {
                 if (account.Value.Character.Name.ToLower().StartsWith(idOrName.ToLower()))
                 {
-                    if ((account.Value.Character.Name.Equals(idOrName, StringComparison.OrdinalIgnoreCase)))
+                    if (account.Value.Character.Name.Equals(idOrName, StringComparison.OrdinalIgnoreCase))
                     {
                         return account.Value;
                     }
@@ -70,7 +82,7 @@ namespace MpRpServer.Server
                 }
             }
             if (count == 1) return rAccount;
-            else if(count > 1)
+            if(count > 1)
             {
                 API.shared.sendChatMessageToPlayer(player, "~r~ERROR: ~w~Multiple players found.");
             }

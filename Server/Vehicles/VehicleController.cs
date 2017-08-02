@@ -23,12 +23,13 @@ namespace MpRpServer.Server.Vehicles
         private DateTime _hourAnnounce;
         private double _vehRpm;
         private double _currentFuel;
+        private Client _inVehiclePlayer;
 
         public VehicleController()
         {
             API.onUpdate += VehicleFuelEvent;
             API.onUpdate += RentVehicleEvent;
-            API.onUpdate += RespawnStaticVehicle;
+            // API.onUpdate += RespawnStaticVehicle; // TRY to stop spawning
             API.onVehicleDeath += OnVehicleExplode;
             API.onPlayerExitVehicle += OnPlayerExitVehicle;
             API.onPlayerEnterVehicle += OnPlayerEnterVehicle;
@@ -70,6 +71,7 @@ namespace MpRpServer.Server.Vehicles
             if (characterController == null) return;
 
             var vehicleController = EntityManager.GetVehicle(vehicle);
+            
             if (vehicleController != null)
             {
                 _currentFuel = vehicleController.VehicleData.Fuel;
@@ -108,20 +110,26 @@ namespace MpRpServer.Server.Vehicles
 
         public void OnVehicleExplode(NetHandle vehicle)
         {
-            /*
-            * VehicleData VM = EntityManager.GetVehicle(vehicle);
-            if (VM.respawnable)
+            var vehicleController = EntityManager.GetVehicle(vehicle);
+            if (vehicleController == null) return;
+            if (!vehicleController.VehicleData.Respawnable) return;
+
+            var vehicleData = vehicleController.VehicleData;
+
+            EntityManager.Warning("Транспортное средство: " + vehicleData.Model + " было уничтожено.");
+            API.delay(30000, true, () =>
             {
-                API.sendChatMessageToAll("Vehicle respawning...");
-                API.delay(10000, true, () => // 10 seconds between vehicle explosion and respawning
-                {
-                    API.sendChatMessageToAll("Vehicle respawned!...");
-                    API.deleteEntity(vehicle);
-                    VehicleData VM2 = new VehicleData(API.createVehicle((VehicleHash)VM.ModelHash, VM.vehPos, new Vector3(0, 0, VM.vehRotZ), VM.color1, VM.color1));
-                    VM2.id = VM.id;
-                });
-            }
-            */
+                EntityManager.Success("Транспортное средство: " + vehicleData.Model + " было респавнено.");
+
+                vehicleController.Vehicle.delete();
+
+                vehicleData.Fuel = FuelByType.GetFuel(vehicleData.Model);
+
+                var newVehicle = new VehicleController(vehicleData,
+                    API.shared.createVehicle((VehicleHash)vehicleData.Model,
+                        new Vector3(vehicleData.PosX, vehicleData.PosY, vehicleData.PosZ),
+                        new Vector3(0.0f, 0.0f, vehicleData.Rot), vehicleData.Color1, vehicleData.Color2));
+            });
         }
 
         public static void LoadVehicles()
@@ -132,7 +140,9 @@ namespace MpRpServer.Server.Vehicles
                 if (vehicle.Group != null) // -1 is reserved for non-group job vehicles.
                 {
                     vehicleController.Group = EntityManager.GetGroup(vehicle.Group.Id);
-                }                
+                }
+                if (vehicleController.VehicleData.Model == RentModels.ScooterModel)
+                    vehicleController.Vehicle.delete();
             }
             API.shared.consoleOutput("[GM] Загружено транспорта: " + ContextFactory.Instance.Vehicle.Count() +" ед.");
         }
@@ -166,7 +176,7 @@ namespace MpRpServer.Server.Vehicles
                         if (vehicle.Character != null)
                         {
                             vehicle.RentTime = vehicle.RentTime - 1;
-                            ContextFactory.Instance.SaveChanges();
+                            ContextFactory.Instance.SaveChangesAsync();
                         }
                     }                    
                 }
@@ -175,14 +185,10 @@ namespace MpRpServer.Server.Vehicles
                     var player = API.shared.getAllPlayers().FirstOrDefault(x => x.socialClubName == vehicle.Character.SocialClub);
                     if (player == null) return;
                     var vehicleController = EntityManager.GetVehicle(vehicle);
-                                        
-                    if (player.isInVehicle == false)
-                    {
-                        if (vehicle.Model == RentModels.ScooterModel) ContextFactory.Instance.Vehicle.Remove(vehicle);
-                        if (vehicle.Model == RentModels.TaxiModel) RespawnWorkVehicle(vehicle, RentModels.TaxiModel, 126, 126);
-                        ContextFactory.Instance.SaveChanges();
-                    }
-                    if (player.isInVehicle)
+                    var currentVehicle = API.shared.getPlayerVehicle(player);
+                    var currentVehicleController = EntityManager.GetVehicle(currentVehicle);
+                    
+                    if (player.isInVehicle && currentVehicleController.VehicleData.Id == vehicle.Id)
                     {
                         vehicleController.Vehicle.engineStatus = false;
                         string banner;
@@ -197,13 +203,23 @@ namespace MpRpServer.Server.Vehicles
                                 text = "Продлите ваше такси на час всего за 100$"; break;
                             default:
                                 banner = "Время проката вышло";
-                                text = "Продлите прокат или начнит сначала."; break;
+                                text = "Продлите прокат или начните сначала."; break;
                         }
 
                         API.shared.triggerClientEvent(player, "rent_finish_menu",
                             1, //0
                             banner,
                             text, vehicle.Model);
+                    }
+                    else
+                    {
+                        if (vehicle.Model == RentModels.ScooterModel)
+                        {
+                            vehicleController.Vehicle.delete();
+                            ContextFactory.Instance.Vehicle.Remove(vehicle);
+                        }
+                        if (vehicle.Model == RentModels.TaxiModel) RespawnWorkVehicle(vehicle, RentModels.TaxiModel, 126, 126);
+                        ContextFactory.Instance.SaveChangesAsync();
                     }
                 }
             }
@@ -233,7 +249,7 @@ namespace MpRpServer.Server.Vehicles
         }
         private static void RespawnStaticJobVehicle(int jobId)
         {
-            var allStaticVehicles = ContextFactory.Instance.Vehicle.Where(x => x.JobId == jobId);
+            var allStaticVehicles = ContextFactory.Instance.Vehicle.Where(x => x.JobId == jobId).ToList();
 
             foreach (var vehicle in allStaticVehicles)
             {
@@ -256,7 +272,7 @@ namespace MpRpServer.Server.Vehicles
         }
         private void RespawnStaticGroupVehicle(int groupId)
         {
-            var allStaticVehicles = ContextFactory.Instance.Vehicle.Where(x => x.GroupId == groupId);
+            var allStaticVehicles = ContextFactory.Instance.Vehicle.Where(x => x.GroupId == groupId).ToList();
 
             foreach (var vehicle in allStaticVehicles)
             {
@@ -280,93 +296,113 @@ namespace MpRpServer.Server.Vehicles
 
         public void ParkVehicle(Client player)
         {
-            var vehicleController = EntityManager.GetVehicle(player.vehicle);
-            if (vehicleController == null) return;
-            CharacterController characterController = player.getData("CHARACTER");
-            if (characterController == null) return;
-            
-            // Rent vehicles (scooter, taxi)
-            if (vehicleController.VehicleData.Model == RentModels.ScooterModel /*||
-                /*vehicleController.VehicleData.Model == Data.Models.RentModels.TaxiModel*/)      // Taxi
+            try
             {
-                API.sendNotificationToPlayer(player, "~r~Вы не можете парковать данный транспорт!");
-                return;
-            }                
+                var vehicleController = EntityManager.GetVehicle(player.vehicle);
+                if (vehicleController == null) return;
+                CharacterController characterController = player.getData("CHARACTER");
+                if (characterController == null) return;
 
-            if (vehicleController.VehicleData.CharacterId == characterController.Character.Id)
-            {
-                if (player.velocity != new Vector3(0.0f, 0.0f, 0.0f))
+                // Rent vehicles (scooter, taxi)
+                if (vehicleController.VehicleData.Model == RentModels.ScooterModel ||
+                vehicleController.VehicleData.Model == RentModels.TaxiModel) // Taxi
                 {
-                    API.sendNotificationToPlayer(player, "Вы не должны двигаться пока транспорт паркуется");
+                    API.sendNotificationToPlayer(player, "~r~Вы не можете парковать данный транспорт!");
                     return;
                 }
 
-                var firstPos = player.vehicle.position;
-                API.sendNotificationToPlayer(player, "Не двигайтесь пока ваш транспорт паркуется.");
-                Global.Util.delay(2500, () =>
+                if (vehicleController.VehicleData.CharacterId == characterController.Character.Id)
                 {
-                    if (player.vehicle != null)
+                    if (player.velocity != new Vector3(0.0f, 0.0f, 0.0f))
                     {
-                        if (firstPos.DistanceTo(player.vehicle.position) <= 5.0f)
-                        {
-
-                            var newPos = player.vehicle.position;// + new Vector3(0.0f, 0.0f, 0.5f);
-                            var rot = player.vehicle.rotation.Z;
-                            vehicleController.VehicleData.PosX = newPos.X;
-                            vehicleController.VehicleData.PosY = newPos.Y;
-                            vehicleController.VehicleData.PosZ = newPos.Z;
-                            vehicleController.VehicleData.Rot = rot;
-
-                            ContextFactory.Instance.SaveChanges();
-
-                            API.sendNotificationToPlayer(player, "~g~[СЕРВЕР]: ~w~Ваш траспорт припаркован!");
-                            API.sendNotificationToPlayer(player, "~y~[СЕРВЕР]: ~w~ Х= " + newPos.X + " Y= " + newPos.Y);
-                        }
-                        else API.sendNotificationToPlayer(player, "~y~Вы двигали транспорт пока парковались.");
+                        API.sendNotificationToPlayer(player, "Вы не должны двигаться пока транспорт паркуется");
+                        return;
                     }
-                });
+
+                    var firstPos = player.vehicle.position;
+                    API.sendNotificationToPlayer(player, "Не двигайтесь пока ваш транспорт паркуется.");
+                    Global.Util.delay(2500, () =>
+                    {
+                        if (player.vehicle != null)
+                        {
+                            if (firstPos.DistanceTo(player.vehicle.position) <= 5.0f)
+                            {
+
+                                var newPos = player.vehicle.position;
+                                var rot = player.vehicle.rotation.Z;
+                                vehicleController.VehicleData.PosX = newPos.X;
+                                vehicleController.VehicleData.PosY = newPos.Y;
+                                vehicleController.VehicleData.PosZ = newPos.Z;
+                                vehicleController.VehicleData.Rot = rot;
+
+                                ContextFactory.Instance.SaveChangesAsync();
+
+                                API.sendNotificationToPlayer(player, "~g~[СЕРВЕР]: ~w~Ваш траспорт припаркован!");
+                                API.sendNotificationToPlayer(player,
+                                    "~y~[СЕРВЕР]: ~w~ Х= " + newPos.X + " Y= " + newPos.Y);
+                            }
+                            else API.sendNotificationToPlayer(player, "~y~Вы двигали транспорт пока парковались.");
+                        }
+                    });
+                }
+                else API.sendNotificationToPlayer(player, "~r~Вы не можете парковать данный транспорт!");
             }
-            else API.sendNotificationToPlayer(player, "~r~Вы не можете парковать данный транспорт!");
+            catch (Exception)
+            {
+                API.sendNotificationToPlayer(player, "~r~Транспорт не припаркован. Попробуйте еще раз!");
+            }
+            
         }
         public bool CheckAccess(CharacterController characterController)
         {
-            var characterGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == characterController.Character.ActiveGroupID);
-            var vehicleGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == VehicleData.GroupId);
-            ContextFactory.Instance.SaveChanges();
-
-            // Check for gangs for stealing
-            if (VehicleData.GroupId == 2000 || VehicleData.GroupId == 2100)
-                switch (characterController.Character.ActiveClothes)
-                {
-                    case 2: return true;
-                    case 3: return true;
-                    case 4: return true;
-                    default: return false;
-                }
-            // Check for busDrivers:
-            if (VehicleData.JobId == 888)
+            try
             {
-                switch (characterController.Character.JobId)
+                var characterGroup =
+                    ContextFactory.Instance.Group.FirstOrDefault(
+                        x => x.Id == characterController.Character.ActiveGroupID);
+                var vehicleGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == VehicleData.GroupId);
+                ContextFactory.Instance.SaveChangesAsync();
+
+                // Check for gangs for stealing
+                if (VehicleData.GroupId == 2000 || VehicleData.GroupId == 2100)
+                    switch (characterController.Character.ActiveClothes)
+                    {
+                        case 201: return true;
+                        case 202: return true;
+                        case 203: return true;
+                        case 2010: return true;
+                        case 2020: return true;
+                        case 2030: return true;
+                        default: return false;
+                    }
+                // Check for busDrivers:
+                if (VehicleData.JobId == 888)
                 {
-                    case JobsIdNonDataBase.BusDriver1: return true;
-                    case JobsIdNonDataBase.BusDriver2: return true;
-                    case JobsIdNonDataBase.BusDriver3: return true;
-                    case JobsIdNonDataBase.BusDriver4: return true;
-                    default: return false;
-                }                
+                    switch (characterController.Character.JobId)
+                    {
+                        case JobsIdNonDataBase.BusDriver1: return true;
+                        case JobsIdNonDataBase.BusDriver2: return true;
+                        case JobsIdNonDataBase.BusDriver3: return true;
+                        case JobsIdNonDataBase.BusDriver4: return true;
+                        default: return false;
+                    }
+                }
+
+                if (VehicleData.Model == RentModels.ScooterModel) return true;
+
+                if (VehicleData.Character != null &&
+                    VehicleData.Character == characterController.Character) return true;
+
+                if (VehicleData.JobId != null &&
+                    VehicleData.JobId == characterController.Character.JobId) return true;
+
+                if (vehicleGroup != null && characterGroup != null &&
+                    vehicleGroup.Type == characterGroup.Type) return true;
             }
-
-            if (VehicleData.Model == RentModels.ScooterModel) return true;
-
-            if (VehicleData.Character != null && 
-                VehicleData.Character == characterController.Character) return true;
-
-            if (VehicleData.JobId != null && 
-                VehicleData.JobId == characterController.Character.JobId) return true;
-
-            if (vehicleGroup != null && characterGroup != null && 
-                vehicleGroup.Type == characterGroup.Type) return true;
-            
+            catch (Exception)
+            {
+                return false;
+            }
             return false;
         }
 
@@ -385,29 +421,38 @@ namespace MpRpServer.Server.Vehicles
                             
                             if (vehicleController != null)
                             {
-                                _currentFuel = vehicleController.VehicleData.Fuel;
-                                vehicleController.VehicleData.Fuel -= _vehRpm * FuelByType.GetConsumption(vehicleController.VehicleData.Model);
-
-                                if (_currentFuel - vehicleController.VehicleData.Fuel > 0.2)
+                                if (_inVehiclePlayer.vehicle == vehicle)
                                 {
                                     _currentFuel = vehicleController.VehicleData.Fuel;
-                                    ContextFactory.Instance.SaveChanges();
+                                    vehicleController.VehicleData.Fuel -=
+                                        _vehRpm * FuelByType.GetConsumption(vehicleController.VehicleData.Model);
+
+                                    if (_currentFuel - vehicleController.VehicleData.Fuel > 0.2)
+                                    {
+                                        _currentFuel = vehicleController.VehicleData.Fuel;
+                                        ContextFactory.Instance.SaveChangesAsync();
+                                    }
+                                    if (_currentFuel < 0)
+                                    {
+                                        _currentFuel = 0.0;
+                                        vehicleController.VehicleData.Fuel = 0.0;
+                                        ContextFactory.Instance.SaveChangesAsync();
+                                        vehicleController.Vehicle.engineStatus = false;
+                                    }
                                 }
-                                if (_currentFuel < 0)
+                                else
                                 {
-                                    _currentFuel = 0.0;
-                                    vehicleController.VehicleData.Fuel = 0.0;
-                                    ContextFactory.Instance.SaveChanges();
-                                    vehicleController.Vehicle.engineStatus = false;
-                                    return;
-                                }                                
+                                    vehicleController.VehicleData.Fuel -=
+                                        _vehRpm * FuelByType.GetConsumption(vehicleController.VehicleData.Model);
+                                    ContextFactory.Instance.SaveChangesAsync();
+                                }
                             }                                
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    // ignored
+                    EntityManager.Log(e, "VEHICLE FUEL DEBUG");
                 }
 
                 _oneSecond = DateTime.Now;
@@ -464,9 +509,24 @@ namespace MpRpServer.Server.Vehicles
             var FormatName = character.Name.Replace("_", " ");
             */
             if (eventName == "ask_fuel_in_car")
-                if (player.isInVehicle) API.triggerClientEvent(player, "update_fuel_display", _currentFuel);
+            {
+                var currentVehicle = API.getPlayerVehicle(player);
+                var playersInCar = API.getVehicleOccupants(currentVehicle);
+                foreach (var playerInCar in playersInCar)
+                    if (playerInCar.vehicleSeat == -1)
+                    {
+                        var vehicleController = EntityManager.GetVehicle(currentVehicle);
+                        if (vehicleController == null) continue;
+                        player = playerInCar;
+                        API.triggerClientEvent(player, "update_fuel_display", vehicleController.VehicleData.Fuel);
+                    }
+            }
 
-            if (eventName == "fuel_consumption") _vehRpm = Convert.ToDouble(args[0]); 
+            if (eventName == "fuel_consumption")
+            {
+                _vehRpm = Convert.ToDouble(args[0]);
+                _inVehiclePlayer = player;
+            } 
         }
     }
 }

@@ -4,6 +4,7 @@ using GrandTheftMultiplayer.Server.Managers;
 using GrandTheftMultiplayer.Shared;
 using MpRpServer.Data.Enums;
 using MpRpServer.Server.Admin;
+using MpRpServer.Server.Characters;
 using MpRpServer.Server.DBManager;
 using MpRpServer.Server.Jobs;
 using MpRpServer.Server.Property;
@@ -20,10 +21,11 @@ namespace MpRpServer.Server.Global
             PropertyController.CreateHome(player, cost);
         }
 
-        [Command("createjob", "~y~usage: ~w~/createjob [group] [characterId] [level] [cost] [type]")]
+        [Command("createjob", "~y~usage: ~w~/createjob [characterId] [level] [cost] [type]")]
         public void Createjob(Client player, int characterId, int level, int cost, JobType type)
         {
             if (!AdminController.AdminRankCheck(player, "createjob")) return;
+            CharacterController characterController = player.getData("CHARACTER");
 
             var jobData = new Data.Job
             {
@@ -33,8 +35,10 @@ namespace MpRpServer.Server.Global
                 Type = type,
                 PosX = player.position.X,
                 PosY = player.position.Y,
-                PosZ = player.position.Z
+                PosZ = player.position.Z,
+                OwnerName = characterController.Character.Name
             };
+
             var jobController = new JobController(jobData);
             ContextFactory.Instance.Job.Add(jobData);
             ContextFactory.Instance.SaveChanges();

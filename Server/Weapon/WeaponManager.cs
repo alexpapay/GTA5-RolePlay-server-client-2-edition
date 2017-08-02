@@ -22,7 +22,8 @@ namespace MpRpServer.Server.Weapon
                 ContextFactory.Instance.SaveChanges();
             }
 
-            var characterWeapons = ContextFactory.Instance.Weapon.First(x => x.CharacterId == character.Id);
+            var characterWeapons = ContextFactory.Instance.Weapon.FirstOrDefault(x => x.CharacterId == character.Id);
+            if (characterWeapons == null) return;
 
             // Respawn with weapons from DB
             if (check == 1)
@@ -170,9 +171,7 @@ namespace MpRpServer.Server.Weapon
             ContextFactory.Instance.SaveChanges();
 
             API.shared.removePlayerWeapon(seller, GetWeaponHash(weapon));
-            API.shared.givePlayerWeapon(buyer, GetWeaponHash(weapon), ammo, false, true);
-            API.shared.sendNotificationToPlayer(buyer, Localize.Lang(initCharacter.Language, "you_bought_weapon") + weapon);
-            API.shared.sendNotificationToPlayer(seller, Localize.Lang(targetCharacter.Language, "you_sold_weapon") + weapon);
+            API.shared.givePlayerWeapon(buyer, GetWeaponHash(weapon), 150, true, true);
         }
     }
 }

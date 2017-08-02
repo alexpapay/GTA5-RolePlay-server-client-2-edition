@@ -30,8 +30,11 @@
     <Compile Include="$(MSBuildThisFileDirectory)Models\GroupMember.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Job.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Const.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\Mobile.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Property.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\Taxes.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Vehicle.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\Wardrobe.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Weapon.cs" />
   </ItemGroup>
 </Project>

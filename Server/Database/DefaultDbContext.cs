@@ -23,8 +23,11 @@ namespace MpRpServer.Server.DBManager
         public DbSet<Data.Weapon> Weapon { get; set; }
         public DbSet<ClothesTypes> ClothesTypes { get; set; }
         public DbSet<Clothes> Clothes { get; set; }
+        public DbSet<Wardrobe> Wardrobe { get; set; }
         public DbSet<Ban> Ban { get; set; }
         public DbSet<Character> Character { get; set; }
+        public DbSet<Taxes> Taxes { get; set; }
+        public DbSet<Mobile> Mobile { get; set; }
 
         public DbSet<Group> Group { get; set; }
         public DbSet<GroupMember> GroupMember { get; set; }
@@ -39,11 +42,11 @@ namespace MpRpServer.Server.DBManager
 
     public class ContextFactory : IDbContextFactory<DefaultDbContext>
     {
-        private static string ConnectionString;
+        private static string _connectionString;
 
         public static void SetConnectionParameters(string serverAddress, string username, string password, string database, uint port = 3306)
         {
-            var connectionStringBuilder = new MySqlConnectionStringBuilder()
+            var connectionStringBuilder = new MySqlConnectionStringBuilder
             {
                 Server = serverAddress,
                 UserID = username,
@@ -52,7 +55,7 @@ namespace MpRpServer.Server.DBManager
                 Port = port
             };
 
-            ConnectionString = connectionStringBuilder.ToString();
+            _connectionString = connectionStringBuilder.ToString();
         }
 
         private static DefaultDbContext _instance;
@@ -69,9 +72,9 @@ namespace MpRpServer.Server.DBManager
 
         public DefaultDbContext Create()
         {
-            if (string.IsNullOrEmpty(ConnectionString)) throw new InvalidOperationException("Please set the connection parameters before trying to instantiate a database connection.");
+            if (string.IsNullOrEmpty(_connectionString)) throw new InvalidOperationException("Please set the connection parameters before trying to instantiate a database connection.");
 
-            return new DefaultDbContext(ConnectionString);
+            return new DefaultDbContext(_connectionString);
         }
 
     }

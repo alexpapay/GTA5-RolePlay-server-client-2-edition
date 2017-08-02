@@ -16,6 +16,6 @@ namespace MpRpServer.Server.Global
         public static int WebRTCServerPort;
         public static string WebRTCServerConnectionString;
 
-        public static string ServerName = "GTA 5 : MP RP";
+        public static string ServerName = "[RUS] mp-rp";
     }
 }

@@ -119,7 +119,7 @@ API.onUpdate.connect(function () {
     }
     if (g_currentState == 1) {
         // Get list data
-        var resolution = API.getScreenResolutionMantainRatio();
+        var resolution = API.getScreenResolutionMaintainRatio();
         var listPadding = 4;
         var listLine = 28;
         var listBorder = 2;

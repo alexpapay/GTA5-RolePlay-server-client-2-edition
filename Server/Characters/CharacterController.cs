@@ -1,14 +1,13 @@
-using System;
-using System.Linq;
-using System.Text.RegularExpressions;
 using GrandTheftMultiplayer.Server.API;
 using GrandTheftMultiplayer.Server.Constant;
 using GrandTheftMultiplayer.Server.Elements;
 using GrandTheftMultiplayer.Shared;
-using MpRpServer.Server.Jobs;
 using MpRpServer.Data;
-using MpRpServer.Server;
 using MpRpServer.Server.DBManager;
+using MpRpServer.Server.Jobs;
+using System;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace MpRpServer.Server.Characters
 {
@@ -16,8 +15,8 @@ namespace MpRpServer.Server.Characters
     {
         public Character Character = new Character();
 
-        public string FormatName { get; private set; }
-        public JobController job;
+        public string FormatName { get; }
+        public JobController Job;
         public GroupMember ActiveGroup = new GroupMember();
 
         public CharacterController(Client player, Character characterData)
@@ -26,10 +25,13 @@ namespace MpRpServer.Server.Characters
             {
                 Character = characterData;
                 FormatName = Character.Name.Replace("_", " ");
-
+                
                 player.setData("CHARACTER", this);
+                player.setData("PRISONKEYS", false);
+                player.setData("MOBILEPHONE", characterData.MobilePhone);
+                player.setData("MODEL", characterData.Model);
 
-                //LoadProperties(player);
+                // MESSAGE TO PLAYER:
                 switch (Character.RegistrationStep)
                 {
                     case 0:
@@ -40,43 +42,46 @@ namespace MpRpServer.Server.Characters
                         break;
                 }
 
-                Character.LastLoginDate = DateTime.Now;
-                Character.Online = true;
+                Character.OID = 0;
 
-                // Dynamic ID
-                var characters = ContextFactory.Instance.Character.Where(x => x.OID != 0).OrderBy(x => x.OID);
-                var firstCharacter = new Character();
+                // DYNAMIC ID
+                var characters = ContextFactory.Instance.Character.Where(x => x.Online).OrderBy(x => x.OID).ToList();
+                var dynamicId = 1;
 
                 if (!characters.Any()) Character.OID = 1; // Alone on the server
                 else
                 {
-                    if (characters.Count() > 2)
+                    if (characters.Count >= 1)
                     {
-                        firstCharacter = characters.First();
                         foreach (var character in characters)
                         {
-                            if (character.OID != firstCharacter.OID)
+                            if (character.OID - 1 > 0 && dynamicId != character.OID)
                             {
-                                if (character.OID - firstCharacter.OID != 1)
-                                {
-                                    Character.OID = firstCharacter.OID + 1;
-                                    goto OIDok;
-                                }
-                                firstCharacter.OID = character.OID;
+                                dynamicId = character.OID - 1;
+                                goto OIDok;
+                            }
+                            if (dynamicId == character.OID)
+                            {
+                                dynamicId++;
                             }
                         }
-                        Character.OID = characters.Count() + 1;
+                        dynamicId = characters.Max().OID + 1;
                     }
-                    else Character.OID = characters.Count() + 1; // Second player login
                 }
-                OIDok: ContextFactory.Instance.SaveChanges();
+                OIDok:
+                Character.OID = dynamicId;
+                Character.LastLoginDate = DateTime.Now;
+                Character.Online = true;
+                ContextFactory.Instance.SaveChangesAsync();
+
+                API.shared.setPlayerName(player, characterData.Name.Replace("_", " ") + " (" + characterData.OID + ")");
+                API.shared.setPlayerNametagColor(player, 255, 255, 255);
             }
             else
             {
                 API.shared.sendChatMessageToPlayer(player, "~r~[ОШИБКА]: characterData is null");
             }
         }
-
         public CharacterController(Client player, string name, string pwd, int language)
         {
             Character.AccountId = pwd;
@@ -88,7 +93,6 @@ namespace MpRpServer.Server.Characters
             Character.JobId = 0;
             Character.Level = 0;
             Character.Model = PedHash.FreemodeMale01.GetHashCode();
-            Character.ModelName = "FreemodeMale01";
             Character.Name = name;
             Character.Online = false;
             Character.PosX = -1034.794f;
@@ -102,27 +106,28 @@ namespace MpRpServer.Server.Characters
             Character.Material = 0;
             Character.SocialClub = player.socialClubName;
             Character.ClothesTypes = 0;
-            Character.ActiveClothes = 101;
+            Character.ActiveClothes = 999;
             Character.Debt = 0;
             Character.DebtMafia = 0;
             Character.DebtLimit = 0;
             Character.MafiaRoof = 0;
+            Character.Narco = 0;
+            Character.NarcoDep = 0;
+            Character.NarcoHealDate = DateTime.Now;
+            Character.NarcoHealQty = 0;
+            Character.PrisonTime = 0;
+            Character.IsPrisoned = false;
             Character.Language = language;
+
             ContextFactory.Instance.Character.Add(Character);
-            ContextFactory.Instance.SaveChanges();
+            ContextFactory.Instance.SaveChangesAsync();
             API.shared.setPlayerSkin(player, PedHash.FreemodeMale01);
+            
             InitializePedFace(player.handle);
             API.shared.triggerClientEvent(player, "face_custom");
         }
 
-        public void Save(Client player)
-        {
-            Character.PosX = player.position.X;
-            Character.PosY = player.position.Y;
-            Character.PosZ = player.position.Z;
-            Character.Rot = player.rotation.Z;
-            Character.Model = player.model.GetHashCode();
-        }
+        // LOGIN OR REGISTER METHODS:
         public static void CreateCharacter(Client player)
         {
             API.shared.triggerClientEvent(player, "create_char_menu", 0);
@@ -136,55 +141,29 @@ namespace MpRpServer.Server.Characters
             player.freeze(false);
             player.transparency = 255;
             API.shared.triggerClientEvent(player, "update_money_display", character.Cash);
-            API.shared.triggerClientEvent(player, "update_bank_money_display", character.Bank);
+            //API.shared.triggerClientEvent(player, "update_bank_money_display", character.Bank);
             API.shared.triggerClientEvent(player, "CEF_DESTROY");
+            SetPlayerColor(player, character.GroupType);
+            player.setData("ISLOGINSUCCES", true);
+            CreateVoiceHash(player, character);
         }
-
+        private static void CreateVoiceHash(Client player, Character character)
+        {
+            var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            var stringChars = new char[16];
+            var random = new Random();
+            for (var i = 0; i < stringChars.Length; i++) stringChars[i] = chars[random.Next(chars.Length)];
+            var finalString = new string(stringChars);
+            API.shared.triggerClientEvent(player, "EnableVoice", "https://voice.mp-rp.ru/voice.php?s=voice&code=" + finalString);
+            character.player_voice_hash = finalString;
+            character.button_voice = 0;
+            ContextFactory.Instance.SaveChangesAsync();
+            //mysql_query("UPDATE `character` SET `player_voice_hash` = '" + finalString + "' WHERE `SocialClub` = '" + player.socialClubName + "'");
+        }
         public GroupMember GetGroupInfo(int groupId)
         {
             return Character.GroupMember.FirstOrDefault(x => x.Group.Id == groupId);
         }
-        public void AddGroup(Data.Group group, bool leader)
-        {
-            var memberEntry = new GroupMember
-            {
-                Character = Character,
-                Group = group,
-                Leader = leader
-            };
-            Character.GroupMember.Add(memberEntry);
-            ContextFactory.Instance.SaveChanges();
-        }
-
-        public void SetActiveGroup(Data.Group group)
-        {
-            if (group == null) return;
-
-            var groupInfo = GetGroupInfo(group.Id);
-            if (groupInfo == null) return;
-            ActiveGroup = new GroupMember
-            {
-                Group = group,
-                Leader = groupInfo.Leader
-            };
-            Character.ActiveGroupID = groupInfo.Group.Id;
-            API.shared.consoleOutput("Вы переведены в группу: " + ActiveGroup.Group.Name);
-        }
-
-        public string ListGroups()
-        {
-            string returnstring = "Группы: ";
-            int count = 0;
-            foreach (var group in Character.GroupMember)
-            {
-                if (group == null) returnstring += "None, ";
-                else returnstring += "TODO";
-                count++;
-            }
-            if (count == 0) returnstring += "None";
-            return returnstring;
-        }
-
         public static bool NameValidityCheck(Client player, string name)
         {
             if (!name.Contains("_") || name.Count(x => x == '_') > 1)
@@ -192,16 +171,17 @@ namespace MpRpServer.Server.Characters
                 API.shared.sendChatMessageToPlayer(player, "~r~ОШИБКА: ~w~Вы должны ввести Имя и Фамилию.\nПожалуйста разделите ваше Имя и Фамилию\nсимволом '_'.");
                 return false;
             }
-            else if (ContextFactory.Instance.Character.FirstOrDefault(x => x.Name.ToLower() == name.ToLower()) != null)
+            if (ContextFactory.Instance.Character.FirstOrDefault(x => x.Name.ToLower() == name.ToLower()) != null)
             {
                 API.shared.sendChatMessageToPlayer(player, "~r~ОШИБКА: ~w~Такое имя уже существует!");
                 return false;
             }
-            else if (Regex.IsMatch(name, @"^[a-zA-Z_]+$")) return true;
+            if (Regex.IsMatch(name, @"^[a-zA-Z_]+$")) return true;
             API.shared.sendChatMessageToPlayer(player, "~r~ОШИБКА: ~w~Вы ввели неверное имя");
             return false;
         }
 
+        // ANIMATIONS & SCENARIO METHODS:
         public static void PlayScenario(Client player, string scenario)
         {
             player.playScenario(scenario);
@@ -218,6 +198,7 @@ namespace MpRpServer.Server.Characters
             API.shared.triggerClientEvent(player, "animation_text");
         }
 
+        // WHICH FRACTION METHODS:
         public static bool IsCharacterInMafia(CharacterController characterController)
         {
             if (characterController.Character.ActiveGroupID >= 3000 &&
@@ -298,14 +279,16 @@ namespace MpRpServer.Server.Characters
             if (character.ActiveGroupID == 1710) return true;
             return false;
         }
-
         public static bool IsCharacterInActiveArmyCloth(Character character)
         {
             switch (character.ActiveClothes)
             {
-                case 2: return true;
-                case 3: return true;
-                case 4: return true;
+                case 201: return true;
+                case 202: return true;
+                case 203: return true;
+                case 2010: return true;
+                case 2020: return true;
+                case 2030: return true;
                 default: return false;
             }
         }
@@ -364,7 +347,6 @@ namespace MpRpServer.Server.Characters
             if (character.ActiveGroupID == 2115) return true;
             return false;
         }
-
         public static bool IsCharacterInPolice(CharacterController characterController)
         {
             if (characterController.Character.ActiveGroupID >= 100 &&
@@ -375,6 +357,30 @@ namespace MpRpServer.Server.Characters
         {
             if (character.ActiveGroupID >= 100 &&
                 character.ActiveGroupID <= 114) return true;
+            return false;
+        }
+        public static bool IsCharacterInMeria(CharacterController characterController)
+        {
+            if (characterController.Character.ActiveGroupID >= 1100 &&
+                characterController.Character.ActiveGroupID <= 1106) return true;
+            return false;
+        }
+        public static bool IsCharacterInMeria(Character character)
+        {
+            if (character.ActiveGroupID >= 1100 &&
+                character.ActiveGroupID <= 1106) return true;
+            return false;
+        }
+        public static bool IsCharacterInEmergency(CharacterController characterController)
+        {
+            if (characterController.Character.ActiveGroupID >= 200 &&
+                characterController.Character.ActiveGroupID <= 210) return true;
+            return false;
+        }
+        public static bool IsCharacterInEmergency(Character character)
+        {
+            if (character.ActiveGroupID >= 200 &&
+                character.ActiveGroupID <= 210) return true;
             return false;
         }
         public static bool IsCharacterInFbi(CharacterController characterController)
@@ -389,8 +395,20 @@ namespace MpRpServer.Server.Characters
                 character.ActiveGroupID <= 310) return true;
             return false;
         }
-       
-        // Gangs sectors methods:
+        public static bool IsCharacterInNews(CharacterController characterController)
+        {
+            if (characterController.Character.ActiveGroupID >= 700 &&
+                characterController.Character.ActiveGroupID <= 710) return true;
+            return false;
+        }
+        public static bool IsCharacterInNews(Character character)
+        {
+            if (character.ActiveGroupID >= 700 &&
+                character.ActiveGroupID <= 710) return true;
+            return false;
+        }
+
+        // GANG SECTORS:
         public static bool IsCharacterInGhetto(Client player)
         {
             var x1 = -468.0; var y1 = -2262.0;
@@ -427,7 +445,7 @@ namespace MpRpServer.Server.Characters
 
             CharacterController characterController = player.getData("CHARACTER");
             if (characterController == null) return false;
-            Character character = characterController.Character;
+            var character = characterController.Character;
 
             if (sectorData == character.GroupType || 
                 sectorData == character.GroupType * 10) return true;
@@ -458,7 +476,33 @@ namespace MpRpServer.Server.Characters
             return "0;0";
         }
 
-        // Face methods:
+        // COLOR METHODS:
+        public static void SetPlayerColor(Client player, int groupType)
+        {
+            switch (groupType)
+            {
+                case 0: API.shared.setPlayerNametagColor(player, 255, 255, 255); break;
+                case 1: API.shared.setPlayerNametagColor(player, 0, 0, 250); break;
+                case 2: API.shared.setPlayerNametagColor(player, 255, 0, 0); break;
+                case 3: API.shared.setPlayerNametagColor(player, 0, 0, 0); break;
+                case 11: API.shared.setPlayerNametagColor(player, 255, 180, 60); break;
+                case 12: API.shared.setPlayerNametagColor(player, 170, 255, 60); break;
+                case 13: API.shared.setPlayerNametagColor(player, 100, 0, 100); break;
+                case 14: API.shared.setPlayerNametagColor(player, 9, 15, 70); break;
+                case 15: API.shared.setPlayerNametagColor(player, 100, 100, 0); break;
+                case 16: API.shared.setPlayerNametagColor(player, 0, 100, 0); break;
+                case 17: API.shared.setPlayerNametagColor(player, 0, 100, 100); break;
+                case 20: API.shared.setPlayerNametagColor(player, 0, 255, 50); break;
+                case 21: API.shared.setPlayerNametagColor(player, 0, 255, 0); break;
+                case 30: API.shared.setPlayerNametagColor(player, 255, 200, 0); break;
+                case 31: API.shared.setPlayerNametagColor(player, 255, 200, 0); break;
+                case 32: API.shared.setPlayerNametagColor(player, 255, 200, 0); break;
+                default: API.shared.setPlayerNametagColor(player, 255, 255, 255); break;
+            }
+            
+        }
+
+        // FACE METHODS:
         public static void InitializePedFace(NetHandle ent)
         {
             API.shared.setEntitySyncedData(ent, "GTAO_HAS_CHARACTER_DATA", true);

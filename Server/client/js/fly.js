@@ -59,8 +59,9 @@ API.onUpdate.connect(function(){
     }
 });
 
-API.onChatCommand.connect(function(msg) {
-    if (msg == "/fly") {
+API.onServerEventTrigger.connect(function (name, args) {
+
+    if (name == "fly") {
         if (flyEnabled) {
             flyEnabled = false;
             API.sendChatMessage("[Fly] ~r~Disabled");

@@ -12,6 +12,34 @@ namespace MpRpServer.Server.Global
 {
     public class GlobalCommands : Script
     {
+        [Flags]
+        public enum AnimationFlags
+        {
+            Loop = 1 << 0,
+            StopOnLastFrame = 1 << 1,
+            OnlyAnimateUpperBody = 1 << 4,
+            AllowPlayerControl = 1 << 5,
+            Cancellable = 1 << 7
+        }
+
+        [Command("animtest")]
+        public void AnimTest(Client player, int flag, string animDict, string animName)
+        {
+            API.playPlayerAnimation(player, (int)(AnimationFlags.Loop | AnimationFlags.OnlyAnimateUpperBody | AnimationFlags.AllowPlayerControl), animDict, animName);
+        }
+
+        [Command("e")]
+        public void EffectTest(Client player, string effectName)
+        {
+            API.shared.triggerClientEvent(player, "player_effect", effectName, 1000, false);
+        }
+
+        [Command("ste")]
+        public void EffectSTest(Client player, string effectName)
+        {
+            API.shared.triggerClientEvent(player, "player_effect_stop", effectName);
+        }
+
         [Command("anim")]
         public void Anim(Client player, string animDict, string animName, int flag)
         {
@@ -35,6 +63,18 @@ namespace MpRpServer.Server.Global
             characterController.Character.Admin = adminRang;
             ContextFactory.Instance.SaveChanges();
             API.sendNotificationToPlayer(player, "~g~Вам присвоен ~s~" + adminRang + " ~g~ранг админа.");
+        }
+
+        [Command("gethealth")]
+        public void GetHealth(Client player)
+        {
+            API.shared.sendNotificationToPlayer(player, player.health.ToString());
+        }
+
+        [Command("getdimension")]
+        public void GetDimension(Client player)
+        {
+            API.shared.sendNotificationToPlayer(player, API.shared.getEntityDimension(player).ToString());
         }
 
         [Command("gettime")]
@@ -200,6 +240,13 @@ namespace MpRpServer.Server.Global
             player.invincible = !player.invincible;
             API.sendNotificationToPlayer(player,
                 player.invincible ? "Вы невидимы!" : "Вас видят!");
+        }
+
+        [Command("fly")]
+        public void Fly(Client player)
+        {
+            if (!AdminController.AdminRankCheck(player, "fly")) return;
+            API.shared.triggerClientEvent(player, "fly");
         }
 
         [Command("logout")]

@@ -3,10 +3,12 @@ var drawAnimationHUD = false;
 var currentMoney = null;
 var bankMoney = null;
 var currentFuel = null;
-var res = API.getScreenResolutionMantainRatio();
+var res = API.getScreenResolutionMaintainRatio();
 
-var res_X = API.getScreenResolutionMantainRatio().Width;
-var res_Y = API.getScreenResolutionMantainRatio().Height;
+var browser_voice = null;
+
+var res_X = API.getScreenResolutionMaintainRatio().Width;
+var res_Y = API.getScreenResolutionMaintainRatio().Height;
 
 API.onUpdate.connect(function (sender, args) {
 
@@ -19,12 +21,19 @@ API.onUpdate.connect(function (sender, args) {
     }
 
     if (bankMoney != null) {
-        API.drawText("$" + bankMoney, res.Width - 15, 20, 0.5, 115, 115, 0, 255, 4, 2, false, true, 0);
+        API.drawText("$" + bankMoney, res.Width - 15, 90, 0.5, 115, 115, 0, 255, 4, 2, false, true, 0);
     }
 });
 
 API.onServerEventTrigger.connect(function (eventName, args) {
 
+    if (eventName == "EnableVoice") {
+        browser_voice = API.createCefBrowser(0, 0, false);
+        API.waitUntilCefBrowserInit(browser_voice);
+        API.setCefBrowserPosition(browser_voice, 0, 0);
+        API.loadPageCefBrowser(browser_voice, args[0]);
+        API.setCefBrowserHeadless(browser_voice, false);
+    }
     if (eventName === "update_money_display") {
         currentMoney = Number(args[0]).toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, '$1,');
     }

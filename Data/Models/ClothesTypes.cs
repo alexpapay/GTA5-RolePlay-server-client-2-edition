@@ -32,17 +32,30 @@ namespace MpRpServer.Data
         public int GlassesDraw { get; set; }
 
         public int Type { get; set; }
-        // Type == 1  : Worker_Loader
-        // Type == 2  : Army_Soldier
-        // Type == 3  : Army_Officer
-        // Type == 4  : Army_General
-        // Type == 5  : BusDriver
 
-        // Type == 10 : Police
+        // Type == 888 | 8880 : Null (Трусы босяком)
+        // Type == 999 | 9990 : Null (Default)
 
-        // Type == 100 : Null (Трусы босяком)
-        // Type == 101 : Null (Default)
-        
-        // Type == 131 : Ballas_Start
+        // Type == 700 | 7000  : Worker_Loader
+        // Type == 701 | 7010  : BusDriver
+
+        // Type == 10 | 100 : Police
+        // Type == 20 | 200 : Emergency
+        // Type == 30 | 300 : FBI
+
+        // Type == 111 | 1110 : Meria
+        // Type == 121 | 1210 : Autoschool
+
+        // Type == 131 | 1310 : Gangs_Start
+        // ....
+        // Type == 171 | 1710 : Gangs_End
+
+        // Type == 201 | 2010 : Army_Soldier
+        // Type == 202 | 2020 : Army_Officer
+        // Type == 203 | 2030 : Army_General
+
+        // Type == 301 | 3010 : Mafia_Start
+        // ....
+        // Type == 321 | 3210 : Mafia_End
     }
 }

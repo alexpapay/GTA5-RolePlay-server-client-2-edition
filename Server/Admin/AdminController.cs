@@ -1,12 +1,6 @@
-using GrandTheftMultiplayer.Server;
 using GrandTheftMultiplayer.Server.API;
 using GrandTheftMultiplayer.Server.Elements;
-using GrandTheftMultiplayer.Server.Constant;
-using GrandTheftMultiplayer.Server.Managers;
-using GrandTheftMultiplayer.Shared;
-using GrandTheftMultiplayer.Shared.Math;
 using MpRpServer.Server.Characters;
-using MpRpServer.Data;
 
 namespace MpRpServer.Server.Admin
 {
@@ -53,6 +47,8 @@ namespace MpRpServer.Server.Admin
                         case "invincible":
                             return true;
                         case "givemoney":
+                            return true;
+                        case "fly":
                             return true;
                     }
                     break;

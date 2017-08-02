@@ -34,17 +34,35 @@
                     case 1: return "~w~You are get a ~g~Soldier clothes~w~.";
                     case 2: return "~w~Вы забрали форму ~g~солдата~w~.";                    
                 }
+            if (word == "kill_cloth_soldier_have")
+                switch (language)
+                {
+                    case 1: return "~w~You already have ~g~Soldier clothes~w~.";
+                    case 2: return "~w~У вас уже есть форма ~g~солдата~w~.";
+                }
             if (word == "kill_cloth_officer")
                 switch (language)
                 {
                     case 1: return "~w~You are get a ~g~Officer clothes~w~.";
                     case 2: return "~w~Вы забрали форму ~g~офицера~w~.";                    
                 }
+            if (word == "kill_cloth_officer_have")
+                switch (language)
+                {
+                    case 1: return "~w~You already have ~g~Officer clothes~w~.";
+                    case 2: return "~w~У вас уже есть форма ~g~офицера~w~.";
+                }
             if (word == "kill_cloth_general")
                 switch (language)
                 {
                     case 1: return "~w~You are get a ~g~General clothes~w~.";
                     case 2: return "~w~Вы забрали форму ~g~генерала~w~.";                    
+                }
+            if (word == "kill_cloth_general_have")
+                switch (language)
+                {
+                    case 1: return "~w~You already have ~g~General clothes~w~.";
+                    case 2: return "~w~У вас уже есть форма ~g~генерала~w~.";
                 }
             if (word == "kick")
                 switch (language)

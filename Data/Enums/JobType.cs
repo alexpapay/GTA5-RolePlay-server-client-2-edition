@@ -5,7 +5,7 @@ namespace MpRpServer.Data.Enums
 {
     public enum JobType
     {
-        [Display(Name = "Gas Station")]
+        [Display(Name = "Авто заправка")]
         [BlipType(361)]
         GasStation = 1,
 
@@ -13,7 +13,7 @@ namespace MpRpServer.Data.Enums
         [BlipType(408)]
         Lawyer = 2,
 
-        [Display(Name = "Mechanic")]
+        [Display(Name = "Автомеханик")]
         [BlipType(446)]
         Mechanic = 3,
 
@@ -21,7 +21,7 @@ namespace MpRpServer.Data.Enums
         [BlipType(461)]
         Bodyguard = 4,
 
-        [Display(Name = "Taxi Driver")]
+        [Display(Name = "Таксист")]
         [BlipType(198)]
         TaxiDriver = 5,
 
@@ -35,6 +35,14 @@ namespace MpRpServer.Data.Enums
 
         [Display(Name = "Водитель автобуса")]
         [BlipType(513)]
-        BusDriver = 8
+        BusDriver = 8,
+
+        [Display(Name = "Магазин одежды")]
+        [BlipType(73)]
+        ClothStore = 9,
+
+        [Display(Name = "Аму-нация")]
+        [BlipType(269)]
+        AmmuNation = 10
     }
 }

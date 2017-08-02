@@ -13,7 +13,7 @@ namespace MpRpServer.Data.Enums
         [BlipType(188)]
         PoliceDepartment = 1,
 
-        [Display(Name = "МЧС")]
+        [Display(Name = "Минздрав")]
         [BlipType(188)]
         Emergency = 2,
 
@@ -32,7 +32,7 @@ namespace MpRpServer.Data.Enums
         TaxiCabCompany = 6,
 
         [Display(Name = "Новости")]
-        [BlipType(50)]
+        [BlipType(459)]
         NewsNetwork = 7,
 
         [Display(Name = "Якутза")]

@@ -25,8 +25,16 @@ namespace MpRpServer.Server
 
             if (characterController.Character.RegistrationStep == 0)
             {
+                var face = ContextFactory.Instance.Faces.FirstOrDefault(x => x.CharacterId == characterController.Character.Id);
+                if (face == null)
+                {
+                    CharacterController.InitializePedFace(player.handle);
+                    API.shared.triggerClientEvent(player, "face_custom");
+                    return;
+                }
                 SetCharacterFace (player, characterController.Character);
-                ClothesManager.SetPlayerSkinClothes(player, 0, characterController.Character, 0);
+                ClothesManager.SetPlayerSkinClothes(player, 0, characterController.Character, true);
+                ClothesManager.WardrobeInit(characterController.Character);
                 WeaponManager.SetPlayerWeapon(player, characterController.Character, 0);
                 API.shared.setEntityPosition(player, FirstPlayerPosition);
                 API.shared.setEntityRotation(player, FirstPlayerRotation);
@@ -35,7 +43,7 @@ namespace MpRpServer.Server
             else
             {
                 SetCharacterFace(player, characterController.Character);
-                ClothesManager.SetPlayerSkinClothes(player, 0, characterController.Character, 1);
+                ClothesManager.SetPlayerSkinClothes(player, 0, characterController.Character, false);
                 WeaponManager.SetPlayerWeapon(player, characterController.Character, 1);
                 API.shared.setEntityPosition(player, NewPlayerPosition);
                 API.shared.setEntityRotation(player, NewPlayerRotation);                
@@ -82,21 +90,28 @@ namespace MpRpServer.Server
             var userHouse = ContextFactory.Instance.Property.FirstOrDefault(x => x.CharacterId == characterController.Character.Id);
             if (userHouse != null)
             {
-                API.shared.setEntityPosition(player, new Vector3(userHouse.ExtPosX, userHouse.ExtPosY, userHouse.ExtPosZ));
+                API.shared.setEntityPosition(player, new Vector3(userHouse.IntPosX, userHouse.IntPosY, userHouse.IntPosZ));
                 API.shared.setEntityRotation(player, NewPlayerRotation);
+            }
+            if (player.getData("ISDYED") == true && !CharacterController.IsCharacterInGang(characterController))
+            {
+                API.shared.setEntityPosition(player, new Vector3(260.26f, -1357.64f, 24.54f));
+                player.setData("ISDYED", false);
+                player.health = 20;
             }
             ContextFactory.Instance.SaveChanges();
         }
 
         public static void SetCharacterFace (Client player, Character character)
         {
-            var face = ContextFactory.Instance.Faces.First(x => x.CharacterId == character.Id);
+            var face = ContextFactory.Instance.Faces.FirstOrDefault(x => x.CharacterId == character.Id);
+            if (face == null) return;
+
             var pedHash = face.SEX == 1885233650 ? PedHash.FreemodeMale01 : PedHash.FreemodeFemale01;
 
             API.shared.setPlayerSkin(player, pedHash);
 
             CharacterController.InitializePedFace(player.handle);
-            //API.shared.exported.gtaocharacter.initializePedFace(player.handle);
 
             API.shared.setEntitySyncedData(player, "GTAO_SHAPE_FIRST_ID", face.GTAO_SHAPE_FIRST_ID);
             API.shared.setEntitySyncedData(player, "GTAO_SHAPE_SECOND_ID", face.GTAO_SHAPE_SECOND_ID);
@@ -108,7 +123,6 @@ namespace MpRpServer.Server
             API.shared.setEntitySyncedData(player, "GTAO_EYEBROWS_COLOR", face.GTAO_EYEBROWS_COLOR);
 
             CharacterController.UpdatePlayerFace(player.handle);
-            //API.shared.exported.gtaocharacter.updatePlayerFace(player.handle);
         }
 
         public static Vector3 GetSpawnPosition() { return NewPlayerPosition; }

@@ -9,8 +9,10 @@ using MpRpServer.Data.Enums;
 using MpRpServer.Data.Extensions;
 using MpRpServer.Server.Characters;
 using MpRpServer.Server.DBManager;
+using MpRpServer.Server.Vehicles;
 using System;
 using System.Linq;
+using MpRpServer.Data.Models;
 
 namespace MpRpServer.Server.Property
 {
@@ -22,37 +24,26 @@ namespace MpRpServer.Server.Property
         public Groups.GroupController GroupController { get; private set; }
 
         public Marker ExteriorMarker { get; private set; }
-        public TextLabel ExteriorTextLabel { get; private set; }
         public ColShape ExteriorColShape { get; private set; }
 
         public Marker InteriorMarker { get; private set; }
-        public TextLabel InteriorTextLabel { get; private set; }
         public ColShape InteteriorColShape { get; private set; }
         public Blip Blip { get; private set; }
 
         // Rent place fields
         public Marker RentPlaceMarker { get; private set; }
-        public TextLabel RentPlaceTextLabel { get; private set; }
         public ColShape RentPlaceColshape { get; private set; }
-
-        //WorkLoader place fileds
-        public Marker WorkLoaderMarker { get; private set; }
-        public TextLabel WorkLoaderTextLabel { get; private set; }
-        public ColShape WorkLoaderColshape { get; private set; }
-
+        
         //Autoschool place fileds
         public Marker AutoschoolMarker { get; private set; }
-        public TextLabel AutoschoolTextLabel { get; private set; }
         public ColShape AutoschoolColshape { get; private set; }
 
         //Meria place fileds
         public Marker MeriaMarker { get; private set; }
-        public TextLabel MeriaTextLabel { get; private set; }
         public ColShape MeriaColshape { get; private set; }
 
         //Armys place fileds
         public Marker ArmysMarker { get; private set; }
-        public TextLabel ArmysTextLabel { get; private set; }
         public ColShape ArmysColshapes { get; private set; }
         public ColShape ArmysGangColshape { get; private set; }
         public ColShape ArmyOneSourceColshape { get; private set; }
@@ -60,85 +51,60 @@ namespace MpRpServer.Server.Property
 
         //Gangs place fileds
         public Marker GangsMarker           { get; private set; }
-        public TextLabel GangsTextLabel     { get; private set; }
         public ColShape GangsMainColshape   { get; private set; } // 2f
         public ColShape GangsStockColshape  { get; private set; } // 3f
 
         //Mafia place fileds
         public Marker MafiaMarker { get; private set; }
-        public TextLabel MafiaTextLabel { get; private set; }
         public ColShape MafiaMainColshape { get; private set; } // 2f
         public ColShape MafiaStockColshape { get; private set; } // 3f
 
         //Police place fileds
         public Marker PoliceMarker          { get; private set; }
-        public TextLabel PoliceTextLabel    { get; private set; }
         public ColShape PoliceMainColshape      { get; private set; }
         public ColShape PoliceStockColshape { get; private set; }
 
         //FBI place fileds
         public Marker FbiMarker { get; private set; }
-        public TextLabel FbiTextLabel { get; private set; }
         public ColShape FbiMainColshape { get; private set; }
         public ColShape FbiStockColshape { get; private set; }
 
         //Emergency place fileds
         public Marker EmergencyMarker { get; private set; }
-        public TextLabel EmergencyTextLabel { get; private set; }
         public ColShape EmergencyColshape { get; private set; }
 
         public PropertyController() { }
-        public PropertyController(Data.Property PropertyData)
+        public PropertyController(Data.Property propertyData)
         {
-            this.PropertyData = PropertyData;
+            PropertyData = propertyData;
         }
         public static void LoadProperties()
         {
             foreach (var property in ContextFactory.Instance.Property.ToList())
             {
-                PropertyController propertyController = new PropertyController(property);
+                var propertyController = new PropertyController(property);
                 if (property.Group != null)
                 {
                     propertyController.GroupController = EntityManager.GetGroup(property.Group.Id);
                     API.shared.consoleOutput("Загружен маркер номер " + property.PropertyID + " для фракции : " + propertyController.GroupController.Group.Name);
                     if (propertyController.GroupController != null)
                     {
-                        string name = property.Group.Name;
-                        if (name == null) propertyController.ownername = "None";
-                        else propertyController.ownername = property.Name;
-
-                        if (propertyController.GroupController.Group.Type == GroupType.Business) // If property's group is a business, initialize items.
-                        {
-                        }
+                        var name = property.Group.Name;
+                        propertyController.ownername = name == null ? "None" : property.Name;
                     }
                 }
                 else if (property.Character != null)
                 {
-                    string name = property.Character.Name;
-                    if (name == null) propertyController.ownername = "None";
-                    else propertyController.ownername = name.Replace("_", " ");
+                    var name = property.Character.Name;
+                    propertyController.ownername = name?.Replace("_", " ") ?? "None";
                 }
 
                 propertyController.CreateWorldEntity();
                 EntityManager.Add(propertyController);
-
             }
             API.shared.consoleOutput("[GM] Загружено маркеров: " + ContextFactory.Instance.Property.Count() + " шт.");
         }
 
-        /*
-        [Display(Name = "Invalid")]             Invalid = 0        
-        [Display(Name = "Полиция")]             Police = 1
-        [Display(Name = "Дверь")]               Door = 2
-        [Display(Name = "Строение")]            Building = 3
-        [Display(Name = "Прокат")]              Rent = 4
-        [Display(Name = "Автошкола")]           Autoschool = 6
-        [Display(Name = "Мэрия")]               Meria = 11
-        [Display(Name = "Балласы")]             GangBallas = 13
-        [Display(Name = "Военные 1")]           ArmyOne = 20
-        [Display(Name = "Военные 2")]           ArmyTwo = 21   
-        [Display(Name = "Жилой дом")]           House = 100
-        */
         public void CreateWorldEntity()
         {
             if (PropertyData.Type == PropertyType.Invalid)
@@ -148,13 +114,18 @@ namespace MpRpServer.Server.Property
                 var propertyName = "";
                 switch (PropertyData.Name)
                 {
-                    case "Roof": propertyName = "Крыша"; break;
+                    case "Roof": propertyName = "Внутрь/На крышу"; break;
+                    case "Meria_enter": propertyName = "Мэрия";
+                        Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 50.0f);
+                        Blip.shortRange = true;
+                        Blip.sprite = 419;
+                        Blip.name = "Мэрия"; break;
                 }
-                ExteriorTextLabel = API.createTextLabel("~g~Вход в: " + propertyName, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                API.createTextLabel("~g~Вход в: " + propertyName, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
 
                 InteriorMarker = API.shared.createMarker(1, new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
                                 new Vector3(1f, 1f, 1f), 150, 255, 255, 0);
-                InteriorTextLabel = API.createTextLabel("~w~Выход из: " + propertyName, new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                API.createTextLabel("~w~Выход из: " + propertyName, new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
             }            
             if (PropertyData.Type == PropertyType.House)
             {
@@ -166,131 +137,128 @@ namespace MpRpServer.Server.Property
                 if (owner == null)
                 {
                     var cost = PropertyData.Stock;
-                    ExteriorTextLabel = API.createTextLabel("~g~Купить дом №"+ PropertyData.PropertyID +".\nСтоимость: " + cost + "$", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    API.createTextLabel("~g~Купить дом №"+ PropertyData.PropertyID +".\nСтоимость: " + cost + "$", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
                 }
                 else
                 {                    
-                    ExteriorTextLabel = API.createTextLabel("~g~Вход в дом №" + PropertyData.PropertyID + ".\nВладелец: " + owner.Name, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    API.createTextLabel("~g~Вход в дом №" + PropertyData.PropertyID + ".\nВладелец: " + owner.Name, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
                 }
 
                 InteriorMarker = API.shared.createMarker(1, new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
                                 new Vector3(1f, 1f, 1f), 150, 255, 255, 0);
-                InteriorTextLabel = API.createTextLabel("~w~Выход из дома.", new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                API.createTextLabel("~w~Выход из дома.", new Vector3(PropertyData.IntPosX, PropertyData.IntPosY, PropertyData.IntPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
 
-                Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
+                Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 50.0f);
+                Blip.shortRange = true;
                 Blip.sprite = 40;
                 Blip.color = PropertyData.CharacterId == null ? 2 : 1;
                 Blip.name = "Жилой дом";
             }
             if (PropertyData.Type == PropertyType.Rent)
             {
-                if (PropertyData.Name == "Rent_scooter")
+                switch (PropertyData.Name)
                 {
-                    RentPlaceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 150, 0, 255, 0);
-                    RentPlaceTextLabel = API.createTextLabel("~w~Прокат мопеда.\nВсего 30$ за полчаса", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 512;
-                    Blip.name = "Прокат мопеда";
-                }                
+                    case "Rent_scooter":
+                        RentPlaceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 150, 0, 255, 0);
+                        CreateTextBlip(PropertyData, "~w~Прокат мопеда.\nВсего 30$ за полчаса", "Прокат мопеда", 512);
+                        break;
+                }
             }
             if (PropertyData.Type == PropertyType.Autoschool)
             {
-                if (PropertyData.Name == "Autoschool_main")
+                switch (PropertyData.Name)
                 {
-                    AutoschoolMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                    new Vector3(1f, 1f, 1f), 250, 25, 50, 200);
-                    AutoschoolTextLabel = API.createTextLabel("~w~Автошкола:\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 76;
-                    Blip.name = "Автошкола";
-                }                
+                    case "Autoschool_main":
+                        AutoschoolMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 250, 25, 50, 200);
+                        CreateTextBlip(PropertyData, "~w~Автошкола:\nГлавная", "Автошкола", 76);
+                        break;
+                }
             }
             if (PropertyData.Type == PropertyType.Meria)
             {
-                if (PropertyData.Name == "Meria_main")
+                switch (PropertyData.Name)
                 {
-                    MeriaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                    new Vector3(1f, 1f, 1f), 250, 25, 50, 200);
-                    MeriaTextLabel = API.createTextLabel("~w~Мэрия:\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 419;
-                    Blip.name = "Мэрия";
-                }                
+                    case "Meria_main":
+                        MeriaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 250, 25, 50, 200);
+                        //CreateTextBlip(PropertyData, "~w~Мэрия:\nГлавная", "Мэрия", 419);
+                        break;
+                    case "Meria_work":
+                        MeriaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Мэрия:\nДля сотрудников", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
+                }
             }
             if (PropertyData.Type == PropertyType.ArmyOne)
             {
-                if (PropertyData.Name == "Army1_main")
+                switch (PropertyData.Name)
                 {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 1\nГлавный маркер", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                }
-                if (PropertyData.Name == "Army1_source")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(15f, 15f, 15f), 250, 20, 20, 50);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 1\nМатериалы", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 481;
-                    Blip.name = "Армия 1 : Исходные материалы";
-                }
-                if (PropertyData.Name == "Army1_stock")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(10f, 10f, 10f), 100, 0, 80, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 1\nГлавный склад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 421;
-                    Blip.name = "Армия 1 : Главный склад";
-                }
-                if (PropertyData.Name == "Army1_weapon")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 125, 0, 100, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 1\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 150;
-                    Blip.name = "Армия 1 : Оружие";
-                }
-                if (PropertyData.Name == "Army1_gang")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(1f, 1f, 1f), 60, 255, 0, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 1\nЛичка бандита", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Army1_main":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Армия 1\nГлавный маркер", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
+
+                    case "Army1_source":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(15f, 15f, 15f), 50, 100, 40, 0);
+                        CreateTextBlip(PropertyData, "~w~Армия 1\nМатериалы", "Армия 1 : Исходные материалы", 481);
+                        break;
+
+                    case "Army1_stock":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(10f, 10f, 10f), 100, 0, 80, 0);
+                        CreateTextBlip(PropertyData, "~w~Армия 1\nГлавный склад", "Армия 1 : Главный склад", 421);
+                        break;
+
+                    case "Army1_weapon":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 125, 0, 100, 0);
+                        CreateTextBlip(PropertyData, "~w~Армия 1\nОружие", "Армия 1 : Оружие", 150);
+                        break;
+
+                    case "Army1_gang":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 60, 255, 0, 0);
+                        API.createTextLabel("~w~Армия 1\nЛичка бандита", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
+                    case "Army_fuel":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(10f, 10f, 10f), 40, 150, 0, 150);
+                        API.createTextLabel("~w~Армия\nЗаправка авиатранспорта", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }
             if (PropertyData.Type == PropertyType.ArmyTwo)
             {
-                if (PropertyData.Name == "Army2_main")
+                switch (PropertyData.Name)
                 {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 2\nГлавный маркер", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                }
-                if (PropertyData.Name == "Army2_stock")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(10f, 10f, 10f), 100, 0, 80, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 2\nГлавный склад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 1.5f), 15.0f, 1.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 421;
-                    Blip.name = "Армия 2 : Главный склад";
-                }
-                if (PropertyData.Name == "Army2_weapon")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 125, 0, 100, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 2\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 150;
-                    Blip.name = "Армия 2 : Оружие";
-                }
-                if (PropertyData.Name == "Army2_gang")
-                {
-                    ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(1f, 1f, 1f), 60, 255, 0, 0);
-                    ArmysTextLabel = API.createTextLabel("~w~Армия 2\nЛичка бандита", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Army2_main":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Армия 2\nГлавный маркер", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
+
+                    case "Army2_stock":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(10f, 10f, 10f), 100, 0, 80, 0);
+                        CreateTextBlip(PropertyData, "~w~Армия 2\nГлавный склад", "Армия 2 : Главный склад", 421);
+                        break;
+
+                    case "Army2_weapon":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 125, 0, 100, 0);
+                        CreateTextBlip(PropertyData, "~w~Армия 2\nОружие", "Армия 2 : Оружие", 150);
+                        break;
+
+                    case "Army2_gang":
+                        ArmysMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 60, 255, 0, 0);
+                        API.createTextLabel("~w~Армия 2\nЛичка бандита", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }
             if (PropertyData.Type == PropertyType.Gangs)
@@ -299,219 +267,195 @@ namespace MpRpServer.Server.Property
                 {
                     GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
                                                         new Vector3(1f, 1f, 1f), 70, 0, 100, 153);
-                    GangsTextLabel = API.createTextLabel("~w~Сдача металла", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 478;
-                    Blip.name = "Сдача металла";
+                    CreateTextBlip(PropertyData, "~w~Сдача металла", "Сдача металла", 478);
                 }
             }
             if (PropertyData.Type == PropertyType.GangBallas)
             {
-                if (PropertyData.Name == "Ballas_main")
+                switch (PropertyData.Name)
                 {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 153, 0, 153);
-                    GangsTextLabel = API.createTextLabel("~w~Балласы\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 106;
-                    Blip.name = "Балласы : Главная";
-                }
-                if (PropertyData.Name == "Ballas_stock")
-                {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    GangsTextLabel = API.createTextLabel("~w~Балласы\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    //Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    //Blip.sprite = 106;
-                    //Blip.name = "Балласы : Склад";
+                    case "Ballas_main":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 153, 0, 153);
+                        CreateTextBlip(PropertyData, "~w~Балласы\nГлавная", "Балласы : Главная", 106);
+                        break;
+                    case "Ballas_stock":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Балласы\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             } // 13
             if (PropertyData.Type == PropertyType.GangAzcas)
             {
-                if (PropertyData.Name == "Azcas_main")
+                switch (PropertyData.Name)
                 {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 9, 15, 70);
-                    GangsTextLabel = API.createTextLabel("~w~Azcas\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 76;
-                    Blip.name = "Azcas : Главная";
-                }
-                if (PropertyData.Name == "Azcas_stock")
-                {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    GangsTextLabel = API.createTextLabel("~w~Azcas\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Azcas_main":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 9, 15, 70);
+                        CreateTextBlip(PropertyData, "~w~Azcas\nГлавная", "Azcas : Главная", 76);
+                        break;
+                    case "Azcas_stock":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Azcas\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }  // 14
             if (PropertyData.Type == PropertyType.GangVagos)
             {
-                if (PropertyData.Name == "Vagos_main")
+                switch (PropertyData.Name)
                 {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 100, 100, 0);
-                    GangsTextLabel = API.createTextLabel("~w~Vagos\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 120;
-                    Blip.name = "Vagos : Главная";
-                }
-                if (PropertyData.Name == "Vagos_stock")
-                {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    GangsTextLabel = API.createTextLabel("~w~Vagos\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Vagos_main":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 100, 100, 0);
+                        CreateTextBlip(PropertyData, "~w~Vagos\nГлавная", "Vagos : Главная", 120);
+                        break;
+                    case "Vagos_stock":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Vagos\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }  // 15
             if (PropertyData.Type == PropertyType.GangGrove)
             {
-                if (PropertyData.Name == "Grove_main")
+                switch (PropertyData.Name)
                 {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 80, 0);
-                    GangsTextLabel = API.createTextLabel("~w~Grove\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 77;
-                    Blip.name = "Grove : Главная";
-                }
-                if (PropertyData.Name == "Grove_stock")
-                {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    GangsTextLabel = API.createTextLabel("~w~Grove\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Grove_main":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 0, 80, 0);
+                        CreateTextBlip(PropertyData, "~w~Grove\nГлавная", "Grove : Главная", 77);
+                        break;
+                    case "Grove_stock":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Grove\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }  // 16
             if (PropertyData.Type == PropertyType.GangRifa)
             {
-                if (PropertyData.Name == "Rifa_main")
+                switch (PropertyData.Name)
                 {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
-                    GangsTextLabel = API.createTextLabel("~w~Rifa\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 88;
-                    Blip.name = "Rifa : Главная";
-                }
-                if (PropertyData.Name == "Rifa_stock")
-                {
-                    GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    GangsTextLabel = API.createTextLabel("~w~Rifa\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Rifa_main":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
+                        CreateTextBlip(PropertyData, "~w~Rifa\nГлавная", "Rifa : Главная", 88);
+                        break;
+                    case "Rifa_stock":
+                        GangsMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Rifa\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }   // 17
             if (PropertyData.Type == PropertyType.RussianMafia)
             {
-                if (PropertyData.Name == "RussianMafia_main")
+                switch (PropertyData.Name)
                 {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
-                    MafiaTextLabel = API.createTextLabel("~w~Russian Mafia\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 78;
-                    Blip.name = "Russian Mafia : Главная";
-                }
-                if (PropertyData.Name == "RussianMafia_stock")
-                {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    MafiaTextLabel = API.createTextLabel("~w~Russian Mafia\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "RussianMafia_main":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
+                        CreateTextBlip(PropertyData, "~w~Russian Mafia\nГлавная", "Russian Mafia : Главная", 78);
+                        break;
+                    case "RussianMafia_stock":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Russian Mafia\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }   // 30
             if (PropertyData.Type == PropertyType.MafiaLKN)
             {
-                if (PropertyData.Name == "MafiaLKN_main")
+                switch (PropertyData.Name)
                 {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
-                    MafiaTextLabel = API.createTextLabel("~w~Mafia LKN\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 78;
-                    Blip.name = "Mafia LKN : Главная";
-                }
-                if (PropertyData.Name == "MafiaLKN_stock")
-                {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    MafiaTextLabel = API.createTextLabel("~w~Mafia LKN\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "MafiaLKN_main":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
+                        CreateTextBlip(PropertyData, "~w~Mafia LKN\nГлавная", "Mafia LKN : Главная", 78);
+                        break;
+                    case "MafiaLKN_stock":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Mafia LKN\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }       // 31
             if (PropertyData.Type == PropertyType.MafiaArmeny)
             {
-                if (PropertyData.Name == "MafiaArmeny_main")
+                switch (PropertyData.Name)
                 {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
-                    MafiaTextLabel = API.createTextLabel("~w~Mafia Armeny\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 78;
-                    Blip.name = "Mafia Armeny : Главная";
-                }
-                if (PropertyData.Name == "MafiaArmeny_stock")
-                {
-                    MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
-                    MafiaTextLabel = API.createTextLabel("~w~Mafia Armeny\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "MafiaArmeny_main":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 0, 100, 100);
+                        CreateTextBlip(PropertyData, "~w~Mafia Armeny\nГлавная", "Mafia Armeny : Главная", 78);
+                        break;
+                    case "MafiaArmeny_stock":
+                        MafiaMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 250, 25, 50, 200);
+                        API.createTextLabel("~w~Mafia Armeny\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }    // 32
             if (PropertyData.Type == PropertyType.Police)
             {
-                if (PropertyData.Name == "Police_stock")
+                switch (PropertyData.Name)
                 {
-                    PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 0, 255, 255);
-                    PoliceTextLabel = API.createTextLabel("~w~Полиция\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 56;
-                    Blip.name = "Полиция : Склад";
-                }
-                if (PropertyData.Name == "Police_main")
-                {
-                    PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 255, 255);
-                    PoliceTextLabel = API.createTextLabel("~w~Полиция\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                }
-                if (PropertyData.Name == "Police_weapon")
-                {
-                    PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(1f, 1f, 1f), 250, 0, 255, 255);
-                    PoliceTextLabel = API.createTextLabel("~w~Полиция\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "Police_stock":
+                        PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 150, 0, 0, 255);
+                        break;
+
+                    case "Police_main":
+                        PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 100, 0, 0, 255);
+                        API.createTextLabel("~w~Полиция\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        CreateTextBlip(PropertyData, "~w~Полиция\nГлавная", "Полиция : Главная", 60);
+                        break;
+
+                    case "Police_weapon":
+                        PoliceMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 80, 0, 0, 255);
+                        API.createTextLabel("~w~Полиция\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }
             if (PropertyData.Type == PropertyType.FBI)
             {
-                if (PropertyData.Name == "FBI_main")
+                switch (PropertyData.Name)
                 {
-                    FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 0, 255, 255);
-                    FbiTextLabel = API.createTextLabel("~w~FBI\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 60;
-                    Blip.name = "FBI : Главная";
-                }
-                if (PropertyData.Name == "FBI_weapon")
-                {
-                    FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(1f, 1f, 1f), 250, 0, 255, 255);
-                    FbiTextLabel = API.createTextLabel("~w~FBI\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                }
-                if (PropertyData.Name == "FBI_stock")
-                {
-                    FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(3f, 3f, 3f), 250, 0, 255, 255);
-                    FbiTextLabel = API.createTextLabel("~w~FBI\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                    case "FBI_main":
+                        FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 150, 0, 255, 255);
+                        CreateTextBlip(PropertyData, "~w~FBI\nГлавная", "FBI : Главная", 60);
+                        break;
+
+                    case "FBI_weapon":
+                        FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(1f, 1f, 1f), 100, 0, 255, 255);
+                        API.createTextLabel("~w~FBI\nОружие", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
+
+                    case "FBI_stock":
+                        FbiMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(3f, 3f, 3f), 120, 0, 255, 255);
+                        API.createTextLabel("~w~FBI\nСклад", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+                        break;
                 }
             }
             if (PropertyData.Type == PropertyType.Emergency)
             {
-                if (PropertyData.Name == "Emergency_main")
+                switch (PropertyData.Name)
                 {
-                    EmergencyMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
-                                                        new Vector3(2f, 2f, 2f), 250, 255, 10, 10);
-                    EmergencyTextLabel = API.createTextLabel("~w~Emergency\nГлавная", new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
-                    Blip = API.createBlip(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ));
-                    Blip.sprite = 51;
-                    Blip.name = "Emergency : Главная";
+                    case "Emergency_main":
+                        EmergencyMarker = API.shared.createMarker(1, new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ) - new Vector3(0, 0, 1f), new Vector3(), new Vector3(),
+                            new Vector3(2f, 2f, 2f), 250, 255, 10, 10);
+                        CreateTextBlip(PropertyData, "~w~Emergency\nГлавная", "Emergency : Главная", 51);
+                        break;
                 }
             }
+
             CreateColShape();
         }
 
@@ -544,14 +488,28 @@ namespace MpRpServer.Server.Property
                             API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), 
                                 "house_menu", PropertyData.PropertyID, PropertyData.Stock, 1, 2, PropertyData.CharacterId);
                     }
+                    if (PropertyData.Name == "Roof")
+                    {
+                        API.shared.sendNotificationToPlayer(API.getPlayerFromHandle(entity), "Вы можете зайти сюда.\nНажмите N для входа.");
+                        API.getPlayerFromHandle(entity).setData("AT_PROPERTY", this);
+                    }
+                    if (PropertyData.Name == "Meria_enter")
+                    {
+                        API.shared.sendNotificationToPlayer(API.getPlayerFromHandle(entity), "Вы можете зайти сюда.\nНажмите N для входа.");
+                        API.getPlayerFromHandle(entity).setData("AT_PROPERTY", this);
+                    }
                 }                
             };
             ExteriorColShape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null && PropertyData.Name == "House")
+                if (API.getPlayerFromHandle(entity) != null)
                 {
-                    API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), 
-                        "house_menu", PropertyData.PropertyID, PropertyData.Stock, 0, 3, 0);
+                    if (PropertyData.Name == "House")
+                    {
+                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity),
+                            "house_menu", PropertyData.PropertyID, PropertyData.Stock, 0, 0, 0);
+                    }
+                    
                     if (PropertyData.Enterable) API.getPlayerFromHandle(entity).resetData("AT_PROPERTY");
                 }
             };
@@ -562,6 +520,11 @@ namespace MpRpServer.Server.Property
                 Client player;
                 if ((player = API.getPlayerFromHandle(entity)) != null)
                 {
+                    if (PropertyData.IntPosZ == 24.5378f && player.getData("NEEDHEAL") == true)
+                    {
+                        API.sendNotificationToPlayer(player, "~r~Вы еще не выздоровели. Подлечитесь!");
+                        return;
+                    }
                     if (PropertyData.Enterable)
                     {
                         API.shared.sendNotificationToPlayer(player, "Выйти отсюда.\nНажмите N для выхода.");
@@ -611,22 +574,34 @@ namespace MpRpServer.Server.Property
             MeriaColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 2f, 3f);
             MeriaColshape.onEntityEnterColShape += (shape, entity) =>
             {
-                Client player;
-                if ((player = API.getPlayerFromHandle(entity)) != null)
-                {                    
+                var player = API.getPlayerFromHandle(entity);
+
+                if (player != null)
+                {
+                    CharacterController characterController = player.getData("CHARACTER");
+                    if (characterController == null) return;
                     if (PropertyData.Name == "Meria_main")
                     {
-                        CharacterController characterController = player.getData("CHARACTER");
                         API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "work_meria_menu", 1, characterController.Character.Level, PropertyData.Name);
+                    }
+                    if (PropertyData.Name == "Meria_work" && characterController.Character.GroupType == 11)
+                    {
+                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "meria_workers", 1, PropertyData.Name);
                     }
                 }
             };
             MeriaColshape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null)
+                var player = API.getPlayerFromHandle(entity);
+                
+                if (player != null)
                 {
+                    CharacterController characterController = player.getData("CHARACTER");
+                    if (characterController == null) return;
                     if (PropertyData.Name == "Meria_main")
                         API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "work_meria_menu", 0, 0, PropertyData.Name);
+                    if (PropertyData.Name == "Meria_work" && characterController.Character.GroupType == 11)
+                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "meria_workers", 0, PropertyData.Name);
                 }
             };
 
@@ -637,23 +612,45 @@ namespace MpRpServer.Server.Property
                 Client player;
                 if ((player = API.getPlayerFromHandle(entity)) != null)
                 {
-                    //CharacterController characterController = player.getData("CHARACTER");
-                    var character = ContextFactory.Instance.Character.First(x => x.SocialClub == player.socialClubName);
-
-                    if (PropertyData.Type == PropertyType.ArmyOne || PropertyData.Type == PropertyType.ArmyTwo)
+                    try
                     {
-                        if (PropertyData.Name == "Army1_stock" && character.GroupType == 21 && player.isInVehicle)
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
+                        CharacterController characterController = player.getData("CHARACTER");
+                        var character = characterController.Character;
 
-                        if (PropertyData.Name == "Army2_stock" && character.GroupType == 20 && player.isInVehicle)
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
+                        if (PropertyData.Type == PropertyType.ArmyOne || PropertyData.Type == PropertyType.ArmyTwo)
+                        {
+                            if (PropertyData.Name == "Army1_stock" && character.GroupType == 21 && player.isInVehicle)
+                                API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
 
-                        if (PropertyData.Name == "Army2_stock" && character.GroupType == 21 && player.isInVehicle)
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
+                            if (PropertyData.Name == "Army2_stock" && character.GroupType == 20 && player.isInVehicle)
+                                API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
 
-                        if (PropertyData.Name == "Army1_stock" || PropertyData.Name == "Army2_stock")
-                            if (CharacterController.IsCharacterInGang(character) && !player.isInVehicle)
-                                API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "gang_menu", 1, PropertyData.Name);
+                            if (PropertyData.Name == "Army2_stock" && character.GroupType == 21 && player.isInVehicle)
+                                API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType, PropertyData.Stock);
+
+                            if (PropertyData.Name == "Army1_stock" || PropertyData.Name == "Army2_stock")
+                                if (CharacterController.IsCharacterInGang(character) && !player.isInVehicle)
+                                    API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "gang_menu", 1, PropertyData.Name);
+
+                            if (player.isInVehicle && PropertyData.Name == "Army_fuel")
+                            {
+                                var playerVehicleController = EntityManager.GetVehicle(player.vehicle);
+                                if (playerVehicleController.VehicleData.Model == -1281684762 ||
+                                    playerVehicleController.VehicleData.Model == 782665360 ||
+                                    playerVehicleController.VehicleData.Model == -1600252419 ||
+                                    playerVehicleController.VehicleData.Model == 1394036463)
+                                {
+                                    playerVehicleController.VehicleData.Fuel =
+                                        FuelByType.GetFuel(playerVehicleController.VehicleData.Model);
+                                    ContextFactory.Instance.SaveChanges();
+                                    API.sendNotificationToPlayer(player, "~g~ Вы успешно заправили полный бак.");
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
                     }
                 }
             };
@@ -678,7 +675,7 @@ namespace MpRpServer.Server.Property
                     if (PropertyData.Type == PropertyType.ArmyOne)
                     {
                         CharacterController characterController = player.getData("CHARACTER");
-                        Character character = characterController.Character;
+                        var character = characterController.Character;
 
                         if (PropertyData.Name == "Army1_source" && character.GroupType == 20 && player.isInVehicle)
                             API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, character.GroupType);
@@ -926,11 +923,13 @@ namespace MpRpServer.Server.Property
             };
             MafiaMainColshape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null)
+                var player = API.getPlayerFromHandle(entity);
+                if (player != null)
                 {
-                    if (PropertyData.Name == "RussianMafia_main" || PropertyData.Name == "MafiaLKN_main"
-                    || PropertyData.Name == "MafiaArmeny_main")
-                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "mafia_menu", 0, PropertyData.Name);
+                    if (PropertyData.Name == "RussianMafia_main" || 
+                        PropertyData.Name == "MafiaLKN_main" || 
+                        PropertyData.Name == "MafiaArmeny_main")
+                        API.shared.triggerClientEvent(player, "mafia_menu", 0, PropertyData.Name);
                 }
             };
 
@@ -975,40 +974,54 @@ namespace MpRpServer.Server.Property
                 }
             };
 
-            // Police main (2f dimension)
-            PoliceMainColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 3f, 3f);
+            // Police main (1f dimension)
+            PoliceMainColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 1f, 1f);
             PoliceMainColshape.onEntityEnterColShape += (shape, entity) =>
             {
-                Client player;
-                if ((player = API.getPlayerFromHandle(entity)) != null)
+                var player= API.getPlayerFromHandle(entity);
+                if (player != null)
                 {
                     if (PropertyData.Type == PropertyType.Police)
                     {
                         CharacterController characterController = player.getData("CHARACTER");
 
                         if (PropertyData.Name == "Police_main" && CharacterController.IsCharacterInPolice(characterController))
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "police_menu", 1, PropertyData.Name, 1);
+                            API.shared.triggerClientEvent(player, "police_menu", 1, PropertyData.Name, 1);
 
-                        if (PropertyData.Name == "Police_weapon" && CharacterController.IsCharacterInPolice(characterController))
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "police_menu", 1, PropertyData.Name, 1);
+                        if (PropertyData.Name == "Police_main" && CharacterController.IsCharacterInFbi(characterController))
+                            API.shared.triggerClientEvent(player, "fbi_menu", 1, PropertyData.Name, 1);
+
+                        if (PropertyData.Name == "Police_weapon" &&
+                            CharacterController.IsCharacterInPolice(characterController))
+                        {
+                            var policeStock = ContextFactory.Instance.Property.FirstOrDefault(x => x.Name == "Police_stock");
+                            if (policeStock == null) return;
+                            API.shared.triggerClientEvent(player, "police_menu", 1, PropertyData.Name, 1, policeStock.Stock);
+                        }
                     }
                 }
             };
             PoliceMainColshape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null)
-                {
-                    if (PropertyData.Name == "Police_main" || PropertyData.Name == "Police_weapon")
-                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "police_menu", 0, PropertyData.Name, 0);
-                }
+                var player = API.getPlayerFromHandle(entity);
+                if (player == null) return;
+
+                CharacterController characterController = API.getPlayerFromHandle(entity).getData("CHARACTER");
+                if (characterController == null) return;
+                
+                    if (PropertyData.Name == "Police_main" && CharacterController.IsCharacterInFbi(characterController))
+                        API.shared.triggerClientEvent(player, "fbi_menu", 0, PropertyData.Name, 1);
+
+                    if (PropertyData.Name == "Police_main")
+                        API.shared.triggerClientEvent(player, "police_menu", 0, PropertyData.Name, 0, 0);
             };
 
             // Police stock (3f dimension)
             PoliceStockColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 3f, 3f);
             PoliceStockColshape.onEntityEnterColShape += (shape, entity) =>
             {
-                Client player;
-                if ((player = API.getPlayerFromHandle(entity)) != null)
+                var player = API.getPlayerFromHandle(entity);
+                if (player != null)
                 {
                     if (PropertyData.Type == PropertyType.Police)
                     {
@@ -1016,44 +1029,44 @@ namespace MpRpServer.Server.Property
 
                         if (PropertyData.Name == "Police_stock" &&
                         CharacterController.IsCharacterInArmy(characterController) && player.isInVehicle)
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 1, PropertyData.Name, characterController.Character.GroupType);
+                            API.shared.triggerClientEvent(player, "army_menu", 1, PropertyData.Name, characterController.Character.GroupType);
                     }
                 }
             };
             PoliceStockColshape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null)
-                {
-                    if (PropertyData.Name == "Police_stock")
-                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_menu", 0, PropertyData.Name, 0);
-                }
+                var player = API.getPlayerFromHandle(entity);
+                if (player == null) return;
+                if (PropertyData.Name == "Police_stock")
+                    API.shared.triggerClientEvent(player, "army_menu", 0, PropertyData.Name, 0);
             };
 
-            // FBI main (2f dimension)
-            FbiMainColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 2f, 2f);
+            // FBI main (1f dimension)
+            FbiMainColshape = API.createCylinderColShape(new Vector3(PropertyData.ExtPosX, PropertyData.ExtPosY, PropertyData.ExtPosZ), 1f, 1f);
             FbiMainColshape.onEntityEnterColShape += (shape, entity) =>
             {
-                Client player;
-                if ((player = API.getPlayerFromHandle(entity)) != null)
+                var player = API.getPlayerFromHandle(entity);
+                if (player != null)
                 {
                     if (PropertyData.Type == PropertyType.FBI)
                     {
                         CharacterController characterController = player.getData("CHARACTER");
 
                         if (PropertyData.Name == "FBI_main" && CharacterController.IsCharacterInFbi(characterController))
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "fbi_menu", 0, PropertyData.Name, 0);
+                            API.shared.triggerClientEvent(player, "fbi_menu", 1, PropertyData.Name, 0);
 
                         if (PropertyData.Name == "FBI_weapon" && CharacterController.IsCharacterInFbi(characterController))
-                            API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "fbi_menu", 0, PropertyData.Name, 0);
+                            API.shared.triggerClientEvent(player, "fbi_menu", 1, PropertyData.Name, 0);
                     }
                 }
             };
             FbiMainColshape.onEntityExitColShape += (shape, entity) =>
             {
-                if (API.getPlayerFromHandle(entity) != null)
+                var player = API.getPlayerFromHandle(entity);
+                if (player != null)
                 {
                     if (PropertyData.Name == "FBI_main" || PropertyData.Name == "FBI_weapon")
-                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "fbi_menu", 0, PropertyData.Name, 0);
+                        API.shared.triggerClientEvent(player, "fbi_menu", 0, PropertyData.Name, 0);
                 }
             };
 
@@ -1089,20 +1102,20 @@ namespace MpRpServer.Server.Property
             {
                 if (API.getPlayerFromHandle(entity) != null)
                 {
-                    if (PropertyData.Type == PropertyType.Emergency)
+                    Client player = API.getPlayerFromHandle(entity);
+                    if (player != null)
                     {
-                        //CharacterController characterController = player.getData("CHARACTER");
+                        if (PropertyData.Type == PropertyType.Emergency)
+                        {
+                            CharacterController characterController = player.getData("CHARACTER");
+                            if (PropertyData.Name == "Emergency_main" &&
+                                CharacterController.IsCharacterInEmergency(characterController))
+                                API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "emergency_menu", 1,
+                                    PropertyData.Name, 0);
 
-                        if (PropertyData.Name == "Emergency_main" )
-                            /*API.shared.triggerClientEvent(API.getPlayerFromHandle(entity),
-                                "army_menu",
-                                1,                           // 0
-                                "FBI stock",                 // 1
-                                "Разгрузка на складе FBI",   // 2
-                                PropertyData.Name,           // 3
-                                1);                          // 4*/
 
-                        ContextFactory.Instance.SaveChanges();
+                            ContextFactory.Instance.SaveChanges();
+                        }
                     }
                 }
             };
@@ -1112,7 +1125,8 @@ namespace MpRpServer.Server.Property
                 {
                     if (PropertyData.Name == "Emergency_main")
                     {
-                        //API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "army_2_menu", 0, "Армия 2", "Вежливые люди тут!", PropertyData.Name, 0);
+                        API.shared.triggerClientEvent(API.getPlayerFromHandle(entity), "emergency_menu", 0,
+                            PropertyData.Name, 0);
                     }
                 }
             };
@@ -1230,6 +1244,14 @@ namespace MpRpServer.Server.Property
             }
         }
 
+        private void CreateTextBlip(Data.Property data, string name, string blipName, int blipSprite)
+        {
+            API.createTextLabel(name, new Vector3(data.ExtPosX, data.ExtPosY, data.ExtPosZ) + new Vector3(0.0f, 0.0f, 0.5f), 15.0f, 0.5f);
+            Blip = API.createBlip(new Vector3(data.ExtPosX, data.ExtPosY, data.ExtPosZ));
+            Blip.shortRange = true;
+            Blip.sprite = blipSprite;
+            Blip.name = blipName;
+        }
         [Command]
         public void Door(Client player)
         {

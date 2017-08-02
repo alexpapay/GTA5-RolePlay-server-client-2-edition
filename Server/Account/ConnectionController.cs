@@ -16,9 +16,6 @@ namespace MpRpServer.Server
 {
     public class ConnectionController : Script
     {
-        //public static readonly Vector3 _startPos = new Vector3(3433.339f, 5177.579f, 39.79541f);
-        //public static readonly Vector3 _startCamPos = new Vector3(3476.85f, 5228.022f, 9.453369f);
-        //public static readonly Vector3 _startPos = new Vector3(-1042.2, -2772.6, 4.639);
         public static readonly Vector3 StartPos = new Vector3(-1043.045, -2772.4, 4.639);
         private static readonly Vector3 StartRot = new Vector3(0.0, 0.0, 58.7041);
         public static readonly Vector3 StartCamPos = new Vector3(-1042.0, -2776.0, 4.639);
@@ -30,81 +27,164 @@ namespace MpRpServer.Server
             API.onPlayerFinishedDownload += OnPlayerFinishedDownloadHandler;
             API.onPlayerDisconnected += OnPlayerDisconnectedHandler;
             API.onPlayerDeath += OnPlayerDeath;
+            API.onPlayerRespawn += OnPlayerRespawnHandler;
+        }
+
+        private void OnPlayerRespawnHandler(Client player)
+        {
+            CharacterController characterController = player.getData("CHARACTER");
+            if (characterController == null) return;
+            SpawnManager.SpawnCharacter(player, characterController);
         }
 
         private void OnPlayerDeath(Client player, NetHandle entityKiller, int weapon)
         {
-            Character killerCharacter = null;
-            Client killer = API.getPlayerFromHandle(entityKiller);
+            CharacterController characterController = player.getData("CHARACTER");
+            var diedCharacter = characterController?.Character;
+            if (diedCharacter == null) return;
+            var killer = API.getPlayerFromHandle(entityKiller);
+            var isMale = diedCharacter.Model == 1885233650;
+
             if (killer != null)
-            {                                           // TODO: Lokalize
+            {
                 API.sendNotificationToAll(killer.name + Localize.Lang(2, "killed") + player.name);
-                killerCharacter = ContextFactory.Instance.Character.FirstOrDefault(x => x.SocialClub == killer.socialClubName);
+                var killerCharacter = ContextFactory.Instance.Character.FirstOrDefault(x => x.SocialClub == killer.socialClubName);
                 if (killerCharacter == null) return;
 
+                // CAPTION GANGS:
                 var caption = ContextFactory.Instance.Caption.First(x => x.Id == 1);
                 if (caption.Sector != "0;0")
                 {
-                    var getAttackGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == caption.GangAttack * 100);
-                    if (getAttackGroup == null) return;
-                    var groupAttackType = (GroupType)Enum.Parse(typeof(GroupType), getAttackGroup.Type.ToString());
-                    var getDefendGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == caption.GangDefend * 100);
-                    if (getDefendGroup == null) return;
-                    var groupDefendType = (GroupType)Enum.Parse(typeof(GroupType), getDefendGroup.Type.ToString());
-
-                    if (killerCharacter.GroupType == caption.GangAttack) caption.FragsAttack += 1;
-                    if (killerCharacter.GroupType == caption.GangDefend) caption.FragsDefend += 1;
-                    API.shared.sendChatMessageToAll(
-                        "Фрагов у банды " + EntityManager.GetDisplayName(groupAttackType) + ": " + caption.FragsAttack + 
-                        "\nФрагов у банды " + EntityManager.GetDisplayName(groupDefendType) + ": " + caption.FragsDefend);
-                    ContextFactory.Instance.SaveChanges();
-                }                
-            }
-            else
-            {                                           // TODO: Lokalize
-                API.sendNotificationToAll(player.name + Localize.Lang(2, "death"));
-            }
-
-            CharacterController characterController = player.getData("CHARACTER");            
-            if (characterController == null) return;
-
-            WeaponManager.SetPlayerWeapon(player, characterController.Character, 2);
-
-            // Army change cloth after death
-            if (CharacterController.IsCharacterInArmy(characterController))
-            {                
-                if (killerCharacter != null && CharacterController.IsCharacterInGhetto(killer))
-                {     
-                    switch (characterController.Character.ActiveClothes)
+                    if (CharacterController.InWhichSectorOfGhetto(player) == caption.Sector &&
+                        CharacterController.InWhichSectorOfGhetto(killer) == caption.Sector)
                     {
-                        case 2: killerCharacter.ClothesTypes = 2;
+                        var getAttackGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == caption.GangAttack * 100);
+                        if (getAttackGroup == null) return;
+                        var groupAttackType = (GroupType)Enum.Parse(typeof(GroupType), getAttackGroup.Type.ToString());
+                        var getDefendGroup = ContextFactory.Instance.Group.FirstOrDefault(x => x.Id == caption.GangDefend * 100);
+                        if (getDefendGroup == null) return;
+                        var groupDefendType = (GroupType)Enum.Parse(typeof(GroupType), getDefendGroup.Type.ToString());
+
+                        if (killerCharacter.GroupType == caption.GangAttack && diedCharacter.GroupType == caption.GangDefend) caption.FragsAttack += 1;
+                        if (killerCharacter.GroupType == caption.GangDefend && diedCharacter.GroupType == caption.GangAttack) caption.FragsDefend += 1;
+
+                        var fragsMessage = "~s~Фрагов у банды ~r~" + EntityManager.GetDisplayName(groupAttackType) + " ~s~: ~r~" + caption.FragsAttack +
+                                           "\n~s~Фрагов у банды ~g~" + EntityManager.GetDisplayName(groupDefendType) + " ~s~: ~g~" + caption.FragsDefend;
+                        ChatController.SendMessageInGroup(caption.GangAttack, fragsMessage);
+                        ChatController.SendMessageInGroup(caption.GangDefend, fragsMessage);
+                        ContextFactory.Instance.SaveChanges();
+                    }
+                    else
+                    {
+                        API.sendChatMessageToPlayer(killer, "Вы вне сектора капта. ~r~Фраг незасчитан!");
+                    }
+                }
+
+                // Army change cloth after death algorithm
+                if (CharacterController.IsCharacterInArmy(diedCharacter) &&
+                    CharacterController.IsCharacterInGhetto(killer))
+                {
+                    switch (diedCharacter.ActiveClothes)
+                    {
+                        case 201:
+                            if (killerCharacter.ClothesTypes == 201)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_soldier_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 201;
                             API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_soldier")); break;
-                        case 3: killerCharacter.ClothesTypes = 3;
+                        case 2010:
+                            if (killerCharacter.ClothesTypes == 2010)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_soldier_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 2010;
+                            API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_soldier")); break;
+                        case 202:
+                            if (killerCharacter.ClothesTypes == 202)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_officer_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 202;
                             API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_officer")); break;
-                        case 4: killerCharacter.ClothesTypes = 4;
+                        case 2020:
+                            if (killerCharacter.ClothesTypes == 2020)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_officer_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 2020;
+                            API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_officer")); break;
+                        case 203:
+                            if (killerCharacter.ClothesTypes == 203)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_general_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 203;
+                            API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_general")); break;
+                        case 2030:
+                            if (killerCharacter.ClothesTypes == 2030)
+                            {
+                                API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_general_have"));
+                                break;
+                            }
+                            killerCharacter.ClothesTypes = 2030;
                             API.sendNotificationToPlayer(killer, Localize.Lang(killerCharacter.Language, "kill_cloth_general")); break;
                     }
-                    ClothesManager.SetPlayerSkinClothesToDb(player, 101, characterController.Character, 1);
-
-                    ContextFactory.Instance.SaveChanges();
+                    ClothesManager.SetPlayerSkinClothesToDb(player, isMale ? 999 : 9990, diedCharacter, false);
                 }
-                else API.sendNotificationToAll("[DEBUG]: Ошибка передачи формы!");
-            }            
-            // Gang change clothes after death
-            if (CharacterController.IsCharacterInGang(characterController) && 
-                CharacterController.IsCharacterInActiveArmyCloth(characterController.Character))
+
+                // TO PRISON IF STARS:
+                if (CharacterController.IsCharacterInPolice(killerCharacter) || 
+                    CharacterController.IsCharacterInFbi(killerCharacter))
+                {
+                    if (API.getPlayerWantedLevel(player) > 0)
+                    {
+                        diedCharacter.PrisonTime = 10;
+                        diedCharacter.IsPrisoned = true;
+                        API.setEntityPosition(player, new Vector3(458.81, -1001.43, 24.91));
+                        API.shared.freezePlayer(player, true);
+                        API.shared.setPlayerWantedLevel(player, 0);
+                        API.sendNotificationToPlayer(player, "~r~Вас посадили в тюрьму!");
+                    }
+                }
+
+                // STARS FOR KILL
+
+            }
+            else
             {
-                characterController.Character.ClothesTypes = 0;
-                ContextFactory.Instance.SaveChanges();
-            }            
+                API.sendNotificationToAll(player.name + Localize.Lang(2, "death"));
+            }
+            WeaponManager.SetPlayerWeapon(player, characterController.Character, 2);
+
+            // Gang change clothes after death
+
+            if (CharacterController.IsCharacterInGang(diedCharacter) &&
+                CharacterController.IsCharacterInActiveArmyCloth(diedCharacter))
+                diedCharacter.ClothesTypes = 0;
+            if (CharacterController.IsCharacterArmyHighOfficer(diedCharacter) ||
+                CharacterController.IsCharacterArmyGeneral(diedCharacter))
+                ClothesManager.SetPlayerSkinClothesToDb(player, isMale ? 999 : 9990, diedCharacter, false);
+            ContextFactory.Instance.SaveChanges();
+
+            if (!CharacterController.IsCharacterInGang(diedCharacter))
+            {
+                player.setData("ISDYED", true);
+                player.setData("NEEDHEAL", true);
+            }
         }
 
         public void OnPlayerConnectedHandler(Client player)
         {
             var character = ContextFactory.Instance.Character.FirstOrDefault(x => x.SocialClub == player.socialClubName);
             if (character == null) return;
-            API.triggerClientEventForAll("playerlist_join", player.socialClubName, player.name, ColorForPlayer(player), character.Id , character.Name);
- 
+            API.triggerClientEventForAll("playerlist_join", player.socialClubName, player.name, ColorForPlayer(player), character.Id, character.Name);
+
             if (IsAccountBanned(player))
             {
                 player.kick(Localize.Lang(character.Language, "kick"));
@@ -128,6 +208,7 @@ namespace MpRpServer.Server
             API.triggerClientEvent(player, "playerlist", list);
 
             API.setEntityData(player, "DOWNLOAD_FINISHED", true);
+            player.setData("BUTTON_VOICE", 0);
             LoginMenu(player);
         }
         public void OnPlayerDisconnectedHandler(Client player, string reason)
@@ -136,10 +217,10 @@ namespace MpRpServer.Server
             var character = ContextFactory.Instance.Character.FirstOrDefault(x => x.SocialClub == player.socialClubName);
             if (character == null) return;
             // Gang change clothes after disconnect
-            if (CharacterController.IsCharacterInGang(character) && 
+            if (CharacterController.IsCharacterInGang(character) &&
                 CharacterController.IsCharacterInActiveArmyCloth(character))
                 character.ClothesTypes = 0;
-                
+
             character.LastLogoutDate = DateTime.Now;
             character.Online = false;
             character.OID = 0;
@@ -148,16 +229,14 @@ namespace MpRpServer.Server
         }
 
         public static void LogOut(Client player, Character character, int type = 0)
-        {            
+        {
             character.Online = false;
             character.OID = 0;
             ContextFactory.Instance.SaveChanges();
 
-            if (type != 0)
-            {
-                LoginMenu(player);
-            }
-            
+            if (type != 0) LoginMenu(player);
+
+            WeaponManager.SetPlayerWeapon(player, character, 3);
             Global.CEFController.Close(player);
             player.resetData("CHARACTER");
             API.shared.resetEntityData(player, "DOWNLOAD_FINISHED");
@@ -169,18 +248,24 @@ namespace MpRpServer.Server
             player.rotation = StartRot;
             player.freeze(true);
             player.transparency = 0;
-            PromptLoginScreen(player);
-        }
-        public static void PromptLoginScreen(Client player)
-        {
+
             var character = ContextFactory.Instance.Character.FirstOrDefault(x => x.SocialClub == player.socialClubName);
             if (character == null) CharacterController.CreateCharacter(player);
             else
             {
-                SpawnManager.SetCharacterFace(player, character);
-                ClothesManager.SetPlayerSkinClothes(player, 0, character, 1);
-                player.transparency = 255;
-                API.shared.triggerClientEvent(player, "login_char_menu", character.Language);
+                var face = ContextFactory.Instance.Faces.FirstOrDefault(x => x.CharacterId == character.Id);
+                if (face != null)
+                {
+                    SpawnManager.SetCharacterFace(player, character);
+                    ClothesManager.SetPlayerSkinClothes(player, 0, character, false);
+                    player.transparency = 255;
+                    API.shared.triggerClientEvent(player, "login_char_menu", character.Language);
+                }
+                else
+                {
+                    CharacterController.InitializePedFace(player.handle);
+                    API.shared.triggerClientEvent(player, "face_custom");
+                }
             }
         }
 
@@ -192,7 +277,6 @@ namespace MpRpServer.Server
             if (socialClubBanEntity != null) return true;
             return false;
         }
-
         private string ColorForPlayer(Client player)
         {
             if (!API.isResourceRunning("colorednames"))

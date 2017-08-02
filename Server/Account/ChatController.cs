@@ -5,7 +5,6 @@ using MpRpServer.Data;
 using MpRpServer.Server.Admin;
 using MpRpServer.Server.Characters;
 using MpRpServer.Server.DBManager;
-using MpRpServer.Server.Extensions;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -23,10 +22,10 @@ namespace MpRpServer.Server
         {
             CharacterController characterController = player.getData("CHARACTER");
             if (characterController == null) return;
-            Character character = characterController.Character;
-            string formatName = character.Name.Replace("_", " ");
+            var character = characterController.Character;
+            var formatName = character.Name.Replace("_", " ");
             
-            var allGroupPlayers = ContextFactory.Instance.Character.Where(x => x.GroupType == character.GroupType);
+            var allGroupPlayers = ContextFactory.Instance.Character.Where(x => x.GroupType == character.GroupType).ToList();
             
             foreach (var groupPlayer in allGroupPlayers)
             {
@@ -39,22 +38,17 @@ namespace MpRpServer.Server
             }
         }
 
-        public static void SendMessageInGroup(Client player, int group, string message)
+        public static void SendMessageInGroup(int groupType, string message)
         {
-            CharacterController characterController = player.getData("CHARACTER");
-            if (characterController == null) return;
-            Character character = characterController.Character;
-            string formatName = character.Name.Replace("_", " ");
-
-            var allGroupPlayers = ContextFactory.Instance.Character.Where(x => x.GroupType == character.DebtMafia);
+            var allGroupPlayers = ContextFactory.Instance.Character.Where(x => x.GroupType == groupType).ToList();
 
             foreach (var groupPlayer in allGroupPlayers)
             {
                 if (groupPlayer.Online)
                 {
-                    Client target = API.shared.getAllPlayers().FirstOrDefault(x => x.socialClubName == groupPlayer.SocialClub);
+                    var target = API.shared.getAllPlayers().FirstOrDefault(x => x.socialClubName == groupPlayer.SocialClub);
                     if (target == null) continue;
-                    API.shared.sendChatMessageToPlayer(target, "Игрок " + formatName + " говорит группе:\n" + message);
+                    API.shared.sendChatMessageToPlayer(target, message);
                 }
             }
         }
@@ -93,8 +87,8 @@ namespace MpRpServer.Server
 
         public static void SendProxMessage(Client player, float radius, string color, string msg)
         {
-            List<Client> proxPlayers = API.shared.getPlayersInRadiusOfPlayer(radius, player);
-            foreach (Client target in proxPlayers)
+            var proxPlayers = API.shared.getPlayersInRadiusOfPlayer(radius, player);
+            foreach (var target in proxPlayers)
             {
                 API.shared.sendChatMessageToPlayer(target, color, msg);
             }
@@ -159,7 +153,7 @@ namespace MpRpServer.Server
         [Command("o", GreedyArg = true)]
         public void OOC_Command(Client player, string msg)
         {
-            foreach (Client c in API.getAllPlayers())
+            foreach (var c in API.getAllPlayers())
             {
                 CharacterController characterController = player.getData("CHARACTER");
                 var formatName = characterController.Character.Name.Replace("_", " ");
@@ -167,16 +161,20 @@ namespace MpRpServer.Server
             }
         }
         
-        [Command("pm", GreedyArg = true)]
-        public void PmCommand(Client player, Client targetPlayer, string message)
+        [Command("pm", "~y~usage: ~w~/[player id] [message]")]
+        public void PmCommand(Client player, int oid, string message)
         {
-            var senderAccountController =  player.GetCharacterController();
-            if (senderAccountController == null) return;
+            var targetCharacter = ContextFactory.Instance.Character.FirstOrDefault(x => x.OID == oid);
+            if (targetCharacter == null)
+            {
+                API.sendNotificationToPlayer(player, "~r~[ОШИБКА]: ~w~Вы ввели неверный пользовательский ID.");
+                return;
+            }
+            var target = API.shared.getAllPlayers().FirstOrDefault(x => x.socialClubName == targetCharacter.SocialClub);
+            if (target == null) return;
 
-            var targetAccountController = targetPlayer.GetCharacterController();
-            if (targetAccountController == null) return;
-
-            //targetAccountController.SendPmMessage(senderAccountController, message);
+            var formatName = targetCharacter.Name.Replace("_", " ");
+            API.sendChatMessageToPlayer(target, "~#FFFFFF~", "(( " + formatName + ": " + message + " ))");
         }
     }
 }
